@@ -1,0 +1,16 @@
+<div id="shell">正在加载...</div>
+<script>
+var KB='{"currentWeek":1,"kbList":['+
+ '{"kcmc":"高等数学A","xm":"张三","cdmc":"1-101","xqj":"1","jcs":"0102","zcd":"1-16"},'+
+ '{"kcmc":"大学英语(3)","xm":"李四","cdmc":"2-203","xqj":"2","jcs":"0304","zcd":"1-16"},'+
+ '{"kcmc":"线性代数","xm":"王五","cdmc":"3-305","xqj":"3","jcs":"0102","zcd":"1-8"},'+
+ '{"kcmc":"大学物理","xm":"赵六","cdmc":"4-102","xqj":"4","jcs":"0506","zcd":"1-16"},'+
+ '{"kcmc":"程序设计基础","xm":"孙七","cdmc":"机房A","xqj":"5","jcs":"0102","zcd":"1-16"},'+
+ '{"kcmc":"体育(1)","xm":"周八","cdmc":"体育馆","xqj":"3","jcs":[7,8],"zcd":[1,6]}'+
+ ']}';
+var u=URL.createObjectURL(new Blob([KB],{type:'application/json'}));
+var x=new XMLHttpRequest();
+x.open('GET',u,true);
+x.onload=function(){ document.getElementById('shell').textContent='已加载 '+x.responseText.length+' 字节'; };
+x.send(null);
+</script>
