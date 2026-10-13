@@ -413,7 +413,7 @@ private fun Header(
                 Text(
                     text = hint,
                     fontSize = 12.sp,
-                    color = if (isCurrentWeek) muted else accent,
+                    color = muted,
                     modifier = Modifier.combinedClickable(
                         onClick = { if (!isCurrentWeek) onHintClick() },
                     ),
@@ -856,18 +856,16 @@ private fun CourseCell(
                 if (!thisWeek) add("非本周")
                 parityLabel(group.weeks, totalWeeks)?.let { add(it) }
             }
-            if (badges.isNotEmpty()) {
+            if (badges.isNotEmpty() && span >= 2) {
                 Spacer(Modifier.weight(1f))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    for (badge in badges) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(titleColor.copy(alpha = 0.16f))
-                                .padding(horizontal = 4.dp, vertical = 1.dp),
-                        ) { Text(badge, fontSize = 9.sp, color = titleColor) }
-                    }
-                }
+                // 纯文字、不带底色：非本周的课本来就整格变淡了，再挂个实心标签会太抢眼
+                Text(
+                    badges.joinToString(" · "),
+                    fontSize = 9.sp,
+                    color = metaColor.copy(alpha = 0.85f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         if (conflict) {
