@@ -224,8 +224,8 @@ fun TimetableScreen(
                 date = today.format(DateFormatter),
                 week = week,
                 totalWeeks = totalWeeks,
-                isCurrentWeek = isCurrentWeek,
-                hint = if (isCurrentWeek) dayName(today.dayOfWeek.value) else "非本周 · 点此回到本周",
+                // 只在当前周显示今天星期几；看别的周时不再挂「点此回到本周」——箭头/滑动/周次面板都能回去
+                hint = if (isCurrentWeek) dayName(today.dayOfWeek.value) else "",
                 subtitle = subtitleOf(timetable),
                 progress = if (timetable.semesterStartDate.isBlank()) {
                     "未设置开学日期 · 点此说明现在是第几周"
@@ -235,7 +235,6 @@ fun TimetableScreen(
                 textOverride = argbOrNull(appearance.uiTextColor),
                 onWeekClick = { showWeekPicker = true },
                 onWeekStep = { delta -> goToWeek(week + delta) },
-                onHintClick = { followCurrent = true },
                 onProgressClick = { showWeekPicker = true },
                 onAddCourse = { onAddCourse(null) },
                 onImport = onOpenImport,
@@ -375,14 +374,12 @@ private fun Header(
     date: String,
     week: Int,
     totalWeeks: Int,
-    isCurrentWeek: Boolean,
     hint: String,
     subtitle: String,
     progress: String,
     textOverride: Color?,
     onWeekClick: () -> Unit,
     onWeekStep: (Int) -> Unit,
-    onHintClick: () -> Unit,
     onProgressClick: () -> Unit,
     onAddCourse: () -> Unit,
     onImport: () -> Unit,
@@ -409,15 +406,10 @@ private fun Header(
                     ChevronDownIcon(tint = tint, size = 16.dp)
                 }
                 WeekStepButton(enabled = week < totalWeeks, right = true, tint = tint) { onWeekStep(1) }
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = hint,
-                    fontSize = 12.sp,
-                    color = muted,
-                    modifier = Modifier.combinedClickable(
-                        onClick = { if (!isCurrentWeek) onHintClick() },
-                    ),
-                )
+                if (hint.isNotBlank()) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(text = hint, fontSize = 12.sp, color = muted)
+                }
             }
             if (subtitle.isNotBlank()) Text(subtitle, fontSize = 11.sp, color = muted)
             if (progress.isNotBlank()) {
@@ -852,19 +844,15 @@ private fun CourseCell(
             if (appearance.showLocation && group.location.isNotBlank()) {
                 Text("@${group.location}", fontSize = metaSize, color = metaColor, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            val badges = buildList {
-                if (!thisWeek) add("非本周")
-                parityLabel(group.weeks, totalWeeks)?.let { add(it) }
-            }
-            if (badges.isNotEmpty() && span >= 2) {
+            // 非本周只靠「整格变淡」表达（官方也是这么做的）；单双周是课程本身的属性，才值得标出来
+            val parity = parityLabel(group.weeks, totalWeeks)
+            if (parity != null && span >= 2) {
                 Spacer(Modifier.weight(1f))
-                // 纯文字、不带底色：非本周的课本来就整格变淡了，再挂个实心标签会太抢眼
                 Text(
-                    badges.joinToString(" · "),
+                    parity,
                     fontSize = 9.sp,
                     color = metaColor.copy(alpha = 0.85f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
