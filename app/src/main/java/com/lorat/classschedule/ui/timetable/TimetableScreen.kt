@@ -4,6 +4,7 @@ import android.webkit.WebView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -303,15 +305,6 @@ private fun TimetableGrid(
         timetable.sectionTimes.size,
         courses.maxOfOrNull { it.endSection } ?: 0,
     )
-    val grid = remember(timetable, week) {
-        val g = Array(maxSection + 1) { arrayOfNulls<Course>(8) }
-        for (c in courses) {
-            for (s in c.startSection..c.endSection) {
-                if (s in 1..maxSection && c.dayOfWeek in 1..7) g[s][c.dayOfWeek] = c
-            }
-        }
-        g
-    }
     val today = LocalDate.now().dayOfWeek.value
 
     Column(modifier.verticalScroll(rememberScrollState()).padding(horizontal = 4.dp)) {
@@ -328,59 +321,78 @@ private fun TimetableGrid(
                 }
             }
         }
-        for (s in 1..maxSection) {
-            Row(Modifier.fillMaxWidth().height(RowHeight)) {
-                Column(
-                    modifier = Modifier.width(TimeColumnWidth),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text("$s", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    timetable.sectionTimes.firstOrNull { it.section == s }?.let { st ->
-                        Text(st.start, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(st.end, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth()) {
+            Column(Modifier.width(TimeColumnWidth).height(RowHeight * maxSection)) {
+                for (s in 1..maxSection) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().height(RowHeight),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text("$s", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        timetable.sectionTimes.firstOrNull { it.section == s }?.let { st ->
+                            Text(st.start, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(st.end, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
-                for (d in 1..7) {
-                    val course = grid[s][d]
-                    Box(Modifier.weight(1f).padding(1.dp).fillMaxHeight()) {
-                        if (course != null) {
-                            val isStart = course.startSection == s
-                            Surface(
-                                color = courseColor(course.colorIndex),
-                                shape = RoundedCornerShape(if (isStart) 6.dp else 3.dp),
-                                modifier = Modifier.fillMaxSize().clickable { onCourseClick(course) },
-                            ) {
-                                if (isStart) {
-                                    Column(Modifier.padding(3.dp)) {
-                                        Text(
-                                            course.name,
-                                            fontSize = 9.sp,
-                                            lineHeight = 11.sp,
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 3,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        if (course.location.isNotBlank()) {
-                                            Text(
-                                                course.location,
-                                                fontSize = 8.sp,
-                                                lineHeight = 10.sp,
-                                                color = Color.White.copy(alpha = 0.9f),
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                        }
-                                    }
+            }
+            BoxWithConstraints(Modifier.weight(1f).height(RowHeight * maxSection)) {
+                val cellWidth = maxWidth / 7
+                Column(Modifier.fillMaxSize()) {
+                    for (s in 1..maxSection) {
+                        Row(Modifier.fillMaxWidth().height(RowHeight)) {
+                            for (d in 1..7) {
+                                Box(Modifier.weight(1f).fillMaxHeight().padding(1.dp)) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                        shape = RoundedCornerShape(3.dp),
+                                        modifier = Modifier.fillMaxSize(),
+                                    ) {}
                                 }
                             }
-                        } else {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                shape = RoundedCornerShape(3.dp),
-                                modifier = Modifier.fillMaxSize(),
-                            ) {}
+                        }
+                    }
+                }
+                for (course in courses) {
+                    val day = course.dayOfWeek
+                    val start = course.startSection
+                    val end = course.endSection.coerceAtMost(maxSection)
+                    if (day !in 1..7 || start !in 1..maxSection || end < start) continue
+                    val span = end - start + 1
+                    Box(
+                        Modifier
+                            .offset(x = cellWidth * (day - 1), y = RowHeight * (start - 1))
+                            .width(cellWidth)
+                            .height(RowHeight * span)
+                            .padding(1.dp),
+                    ) {
+                        Surface(
+                            color = courseColor(course.colorIndex),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.fillMaxSize().clickable { onCourseClick(course) },
+                        ) {
+                            Column(Modifier.padding(4.dp)) {
+                                Text(
+                                    course.name,
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (course.location.isNotBlank()) {
+                                    Text(
+                                        course.location,
+                                        fontSize = 8.sp,
+                                        lineHeight = 10.sp,
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
