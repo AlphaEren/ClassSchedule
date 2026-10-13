@@ -5,6 +5,7 @@ package com.lorat.classschedule.ui.timetable
 import android.webkit.WebView
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -820,7 +821,9 @@ private fun CourseCell(
     val base = courseColor(group.colorIndex)
     val overrideText = argbOrNull(appearance.textColor)
     val overrideBorder = argbOrNull(appearance.borderColor)
-    val dim = if (thisWeek) 1f else (appearance.otherWeekOpacity / 100f).coerceIn(0.05f, 1f)
+    // 非本周：卡片明显更淡，跟左边的本周课程拉开对比（文字留一点淡化但保证还能读）
+    val dim = if (thisWeek) 1f else ((appearance.otherWeekOpacity / 100f) * 0.55f).coerceIn(0.03f, 1f)
+    val textFade = if (thisWeek) 1f else 0.85f
     val fill = when (appearance.cellStyle) {
         CellStyle.FILLED -> appearance.opacity / 100f
         CellStyle.OUTLINE -> 0.05f
@@ -838,6 +841,8 @@ private fun CourseCell(
         appearance.cellStyle == CellStyle.FILLED -> Color.White.copy(alpha = 0.88f)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val titleText = titleColor.copy(alpha = titleColor.alpha * textFade)
+    val metaText = metaColor.copy(alpha = metaColor.alpha * textFade)
     val shape = RoundedCornerShape(appearance.cornerRadius.dp)
     val borderColor = overrideBorder ?: base
     val wantsBorder = appearance.cellStyle == CellStyle.OUTLINE || appearance.dashedBorder || overrideBorder != null
@@ -867,35 +872,52 @@ private fun CourseCell(
                 fontSize = appearance.fontSize.sp,
                 lineHeight = (appearance.fontSize + 2).sp,
                 fontWeight = FontWeight.SemiBold,
-                color = titleColor,
+                color = titleText,
                 maxLines = if (span >= 3) 5 else if (span == 2) 3 else 2,
                 overflow = TextOverflow.Ellipsis,
             )
             val metaSize = (appearance.fontSize - 3).coerceAtLeast(7).sp
             if (appearance.showTime) {
                 val time = timeText(course, sectionTimes)
-                if (time.isNotBlank()) Text(time, fontSize = metaSize, color = metaColor, maxLines = 1)
+                if (time.isNotBlank()) Text(time, fontSize = metaSize, color = metaText, maxLines = 1)
             }
             if (appearance.showTeacher && group.teacher.isNotBlank()) {
-                Text(group.teacher, fontSize = metaSize, color = metaColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(group.teacher, fontSize = metaSize, color = metaText, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (appearance.showLocation && group.location.isNotBlank()) {
-                Text("@${group.location}", fontSize = metaSize, color = metaColor, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("@${group.location}", fontSize = metaSize, color = metaText, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            // 非本周 / 单双周：纯文字、不带底色（整格变淡已经表达了非本周，这里只做文字说明）
+            // 标签：带边框的小牌子。非本周用更实的边框保持醒目，单双周淡一点。
             val marks = buildList {
                 if (!thisWeek) add("非本周")
                 parityLabel(group.weeks, totalWeeks)?.let { add(it) }
             }
             if (marks.isNotEmpty() && span >= 2) {
                 Spacer(Modifier.weight(1f))
-                Text(
-                    marks.joinToString(" · "),
-                    fontSize = 9.sp,
-                    color = metaColor.copy(alpha = 0.85f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (mark in marks) {
+                        val strong = mark == "非本周"
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(titleText.copy(alpha = if (strong) 0.10f else 0f))
+                                .border(
+                                    width = 1.dp,
+                                    color = titleText.copy(alpha = if (strong) 0.65f else 0.28f),
+                                    shape = RoundedCornerShape(4.dp),
+                                )
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                        ) {
+                            Text(
+                                mark,
+                                fontSize = 9.sp,
+                                color = titleText.copy(alpha = if (strong) 0.95f else 0.7f),
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                    }
+                }
             }
         }
         if (conflict) {
