@@ -1,6 +1,7 @@
 package com.lorat.classschedule.data
 
 import com.lorat.classschedule.data.model.Course
+import com.lorat.classschedule.data.model.SectionTime
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.util.UUID
@@ -27,6 +28,8 @@ object TimetableExtractor {
     const val PRESET_ZF = "zf"
     const val PRESET_JWGLXT = "jwglxt"
     const val PRESET_QZ = "qz"
+    /** 教务处 SaaS（EXESAC）：页面只放一个空 table，课表全来自 TimeTableHandler.ashx 的 JSON。 */
+    const val PRESET_SAAS = "saas"
 
     val presets: List<Pair<String, String>> = listOf(
         PRESET_AUTO to "自动检测（推荐）",
@@ -34,10 +37,14 @@ object TimetableExtractor {
         PRESET_ZF to "正方 / URP",
         PRESET_JWGLXT to "正方教务（jwglxt 新版）",
         PRESET_QZ to "强智教务",
+        PRESET_SAAS to "教务处 SaaS（接口原始数据）",
     )
 
     fun presetLabel(key: String): String =
         presets.firstOrNull { it.first == key }?.second ?: presets.first().second
+
+    /** True when this scrape came from a system that handed us its own structured data. */
+    fun isStructured(result: ScrapeResult): Boolean = result.mode == "net" && result.courses.isNotEmpty()
 
     fun scraperJs(preset: String): String = RAW_SCRAPER_JS.replace("__PRESET__", preset)
 
@@ -66,6 +73,14 @@ object TimetableExtractor {
         val rows: List<List<Cell>> = emptyList(),
         /** Courses already structured by the page's own data, bypassing text parsing. */
         val courses: List<Course> = emptyList(),
+        /** The source's own bell schedule, when it published one (exact 上课/下课时间). */
+        val sectionTimes: List<SectionTime> = emptyList(),
+        /** The week the source considers current; 0 when it did not say. */
+        val currentWeek: Int = 0,
+        /** First Monday of the semester according to the source (yyyy-MM-dd). */
+        val semesterStart: String = "",
+        /** Last teaching week the source mentioned. */
+        val weekCount: Int = 0,
         /** Shape report of the tables found, for troubleshooting an unrecognized page. */
         val sample: String = "",
     )
@@ -144,6 +159,16 @@ object TimetableExtractor {
                     )
                 }
             }
+            val sectionTimes = ArrayList<SectionTime>()
+            obj.optJSONArray("st")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val item = arr.optJSONObject(i) ?: continue
+                    val start = item.optString("s", "").trim()
+                    val end = item.optString("e", "").trim()
+                    if (start.isBlank()) continue
+                    sectionTimes.add(SectionTime(sectionTimes.size + 1, start, end.ifBlank { start }))
+                }
+            }
             ScrapeResult(
                 ok = ok && (rows.isNotEmpty() || dataCourses.isNotEmpty()),
                 error = obj.optString("error").takeIf { it.isNotBlank() },
@@ -157,6 +182,10 @@ object TimetableExtractor {
                 foundUrl = obj.optString("foundUrl", ""),
                 rows = rows,
                 courses = dataCourses,
+                sectionTimes = sectionTimes,
+                currentWeek = obj.optInt("week", 0),
+                semesterStart = obj.optString("start", "").trim(),
+                weekCount = obj.optInt("weeks", 0),
                 sample = obj.optString("sample", ""),
             )
         }.getOrElse { ScrapeResult(ok = false, error = "exception", message = it.message ?: "parse-error") }
@@ -181,6 +210,8 @@ object TimetableExtractor {
                     c.copy(
                         weeks = c.weeks.filter { it in 1..limit },
                         colorIndex = abs(c.name.hashCode()) % 8,
+                        // 同一门课的多个时间段归到一个分组，课表里才会当做一门课（同色、可一起编辑）
+                        groupId = c.groupId.ifBlank { "n-" + abs(c.name.hashCode()) },
                     )
                 }
         }
@@ -210,7 +241,12 @@ object TimetableExtractor {
                 val start = if (cell.section in 1..20) cell.section else section.first
                 val end = maxOf(section.second, start + cell.rowSpan - 1)
                 val course = parseCourseCell(cell.text, cell.weeks, day, start, end, totalWeeks) ?: continue
-                byKey.putIfAbsent("${course.name}|${course.dayOfWeek}|${course.startSection}", course)
+                // 同名、同星期、同节次的课可能只是「周次不同」（例如 1-6 周与 9-10 周），
+                // 去重键必须带上周次，否则后面的记录会被前面吃掉。
+                byKey.putIfAbsent(
+                    "${course.name}|${course.dayOfWeek}|${course.startSection}-${course.endSection}|${course.weeks.joinToString(",")}",
+                    course,
+                )
             }
         }
         return byKey.values.toList()
@@ -594,6 +630,96 @@ function arrToCourses(arr){
     out.push({n:nm.substring(0,40),t:pick(ob,K_TEA),r:pick(ob,K_ROOM),d:day,s:jc.s,e:jc.e,w:wk||[]});
   }
   return out;
+}
+/* ---------- 教务处 SaaS（EXESAC）原始接口：一次拿到全学期每次课 ----------
+   {"ClassTimePatterns":[{"StartTimeSlot":96,"EndTimeSlot":105},...],
+    "CurrentWeekIndex":6,
+    "Data":[{"LUName":"机械原理","FullName":"老师A","Building":"B楼","Classroom":"F教3",
+             "WeekStart":1,"WeekEnd":9,"WeekInterval":0,"TimeSlotStart":168,"TimeSlotEnd":188,
+             "StartDay":"2026-09-07","OnMonday":false,"OnTuesday":true,...}]}
+   节次用「5 分钟为单位」的节号表示，ClassTimePatterns 把节号换算成上下课时间。 */
+function kbJson(t){
+  if(!t) return null;
+  t=(''+t).replace(/^\uFEFF/,'').replace(/^\s+/,'');
+  if(t.length<40) return null;
+  var c=t.charAt(0); if(c!=='{'&&c!=='[') return null;
+  try{ return JSON.parse(t); }catch(e){ return null; }
+}
+function slotClock(slot){
+  var m=Math.round(Number(slot)*5); if(!isFinite(m)||m<0) return '';
+  var h=Math.floor(m/60), mi=m%60;
+  return (h<10?'0':'')+h+':'+(mi<10?'0':'')+mi;
+}
+function kbRoom(building,room){
+  var b=(''+(building||'')).trim(), r=(''+(room||'')).trim();
+  if(!r) return b;
+  var at=r.indexOf(b);
+  if(b&&at>=0) r=r.substring(at);
+  // "A116" / "E楼104104" / "A118" 这类「名字重复一遍」的写法只留一份，
+  // 并且去掉前面的英文房号前缀（CS610 -> 610）。
+  var m2=r.match(/^(.*?)([^\s]{2,8})\2$/);
+  if(m2&&/\d/.test(m2[2])) r=(/^[A-Za-z]*$/.test(m2[1])?m2[2]:(m2[1]+m2[2]));
+  if(b&&r.indexOf(b)===0) return r;
+  return b+r;
+}
+function kbExesac(obj){
+  if(!obj||typeof obj!=='object') return null;
+  var pats=obj.ClassTimePatterns, data=obj.Data;
+  if(!pats||!data||!pats.length||!data.length) return null;
+  var patterns=[],i;
+  for(i=0;i<pats.length;i++) patterns.push({s:slotClock(pats[i].StartTimeSlot),e:slotClock(pats[i].EndTimeSlot)});
+  var flags=['OnMonday','OnTuesday','OnWednesday','OnThursday','OnFriday','OnSaturday','OnSunday'];
+  var out=[],maxWeek=0,startDay='',seen={};
+  for(i=0;i<data.length;i++){
+    var d=data[i]; if(!d) continue;
+    var name=(''+(d.LUName||'')).trim(); if(name.length<2) continue;
+    var s0=Number(d.TimeSlotStart), s1=Number(d.TimeSlotEnd), secs=[], p;
+    for(p=0;p<pats.length;p++){
+      var ps=Number(pats[p].StartTimeSlot), pe=Number(pats[p].EndTimeSlot);
+      if(ps>=s0-1&&pe<=s1+1) secs.push(p+1);
+    }
+    if(!secs.length) for(p=0;p<pats.length;p++){
+      if(Number(pats[p].StartTimeSlot)<=s0&&s0<=Number(pats[p].EndTimeSlot)){ secs=[p+1]; break; }
+    }
+    if(!secs.length) continue;
+    var ws=Math.max(1,Number(d.WeekStart)||1), we=Math.max(ws,Number(d.WeekEnd)||ws);
+    // WeekInterval>0 表示隔周上课，奇偶跟着起始周走
+    var step=(Number(d.WeekInterval)>0)?2:1, weeks=[];
+    for(var w=ws;w<=we;w+=step) weeks.push(w);
+    if(we>maxWeek) maxWeek=we;
+    if(!startDay&&d.StartDay) startDay=(''+d.StartDay).substring(0,10);
+    var room=kbRoom(d.Building,d.Classroom), tea=(''+(d.FullName||'')).trim();
+    for(var di=0;di<7;di++){
+      if(!d[flags[di]]) continue;
+      var item={n:name.substring(0,40),t:tea,r:room,d:di+1,s:secs[0],e:secs[secs.length-1],w:weeks};
+      // 同一门课在同一个格子里的多条记录（合班/多教师）合并成一条，教师用逗号连起来
+      var key=item.n+'|'+item.d+'|'+item.s+'|'+item.e+'|'+weeks.join(',');
+      if(seen[key]){
+        var prev=seen[key];
+        if(tea&&prev.t.indexOf(tea)<0) prev.t=prev.t?(prev.t+','+tea):tea;
+        continue;
+      }
+      seen[key]=item; out.push(item);
+    }
+  }
+  if(out.length<2) return null;
+  return {courses:out,patterns:patterns,week:(Number(obj.CurrentWeekIndex)>0?Number(obj.CurrentWeekIndex):0),start:startDay,totalWeeks:maxWeek};
+}
+function exesacTry(ds,recs){
+  var i;
+  if(recs) for(i=0;i<recs.length;i++){
+    var r=kbExesac(kbJson(recs[i].r)); if(r) return r;
+  }
+  for(i=0;i<ds.length;i++){
+    var sc=null; try{ sc=ds[i].doc.getElementsByTagName('script'); }catch(e){ sc=null; }
+    if(!sc) continue;
+    for(var s=0;s<sc.length;s++){
+      var txt=sc[s].text||'';
+      if(txt.indexOf('ClassTimePatterns')<0) continue;
+      var r2=kbExesac(kbJson(txt)); if(r2) return r2;
+    }
+  }
+  return null;
 }
 function dataTry(ds,recs){
   var S={best:0,arr:null,src:''};
@@ -1065,7 +1191,7 @@ function boxTry(ds){
     if(out.length<4&&!(out.length>=2&&hl.length>=3)) continue;
     var seen={},uniq=[];
     for(var a=0;a<out.length;a++){
-      var key=out[a].n+'|'+out[a].d+'|'+out[a].s;
+      var key=out[a].n+'|'+out[a].d+'|'+out[a].s+'|'+out[a].e+'|'+((out[a].w||[]).join(','));
       if(seen[key]) continue;
       seen[key]=1; uniq.push(out[a]);
     }
@@ -1085,6 +1211,11 @@ try{
   var dsAll=ds.concat(nd);
   var sys=detectSystem(dsAll);
   var eff=(PRESET==='auto')?(sys==='unknown'?'generic':sys):PRESET;
+  var ex=null; try{ ex=exesacTry(dsAll,recs); }catch(e){ log.push('exesac-err'); }
+  if(ex&&ex.courses.length>=2){
+    log.push('exesac='+ex.courses.length+' weeks='+ex.totalWeeks+' cur='+ex.week+' start='+ex.start+' secs='+ex.patterns.length);
+    return JSON.stringify({ok:true,mode:'net',system:'saas',preset:eff,diagnostics:log.join('; '),title:document.title||'',url:location.href,foundUrl:location.href,courses:ex.courses,st:ex.patterns,week:ex.week,start:ex.start,weeks:ex.totalWeeks});
+  }
   var data=null; try{ data=dataTry(dsAll,recs); }catch(e){ log.push('data-err'); }
   if(data&&data.courses.length>=2){
     log.push('data='+data.courses.length+((data.src)?('@'+data.src.substring(0,44)):''));

@@ -217,24 +217,8 @@ fun csvOf(courses: List<Course>, totalWeeks: Int): String {
 /** `1-16`, `1-5、7-11单`, `2、5、8` — the week syntax the official template uses. */
 fun csvWeeks(weeks: List<Int>, totalWeeks: Int): String {
     if (weeks.isEmpty() || weeks.size >= totalWeeks) return "1-$totalWeeks"
-    val allOdd = weeks.all { it % 2 == 1 }
-    val allEven = weeks.all { it % 2 == 0 }
-    return when {
-        // Compress in parity space so "7,9,11" is written as "7-11单", like the official template.
-        allOdd -> compactWeeks(weeks, { (it + 1) / 2 }, { 2 * it - 1 }) + "单"
-        allEven -> compactWeeks(weeks, { it / 2 }, { 2 * it }) + "双"
-        else -> weekRanges(weeks).joinToString("、") { (from, to) -> if (from == to) "$from" else "$from-$to" }
-    }
-}
-
-private fun compactWeeks(
-    weeks: List<Int>,
-    toIndex: (Int) -> Int,
-    toWeek: (Int) -> Int,
-): String = weekRanges(weeks.map(toIndex)).joinToString("、") { (from, to) ->
-    val start = toWeek(from)
-    val end = toWeek(to)
-    if (start == end) "$start" else "$start-$end"
+    val spec = weekSpec(weeks)
+    return spec.text("、") + (spec.parity ?: "")
 }
 
 private fun escapeCsv(value: String): String =

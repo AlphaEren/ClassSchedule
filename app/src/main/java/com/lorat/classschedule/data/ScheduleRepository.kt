@@ -91,13 +91,40 @@ class ScheduleRepository(context: Context) {
     }
 
     suspend fun updateSectionTimes(sectionTimes: List<SectionTime>) {
-        val cleaned = sectionTimes
-            .filter { it.section >= 1 }
-            .distinctBy { it.section }
-            .sortedBy { it.section }
-            .mapIndexed { index, st -> st.copy(section = index + 1) }
+        val cleaned = sanitizeSections(sectionTimes)
         if (cleaned.isEmpty()) return
         save(_timetable.value.copy(sectionTimes = cleaned))
+    }
+
+    private fun sanitizeSections(sectionTimes: List<SectionTime>): List<SectionTime> = sectionTimes
+        .filter { it.section >= 1 }
+        .distinctBy { it.section }
+        .sortedBy { it.section }
+        .mapIndexed { index, st -> st.copy(section = index + 1) }
+
+    /**
+     * Apply an imported timetable. Besides the courses, an academic system often knows its own
+     * bell schedule, the first Monday of the term and which week "today" is in — take all of it,
+     * so the app stops guessing the current week and shows the real 上课时间.
+     */
+    suspend fun applyImport(
+        courses: List<Course>,
+        sectionTimes: List<SectionTime> = emptyList(),
+        semesterStart: String = "",
+        currentWeek: Int = 0,
+        weekCount: Int = 0,
+    ) {
+        val current = _timetable.value
+        var next = current.copy(courses = courses, lastUpdatedAt = System.currentTimeMillis())
+        val sections = sanitizeSections(sectionTimes)
+        if (sections.isNotEmpty()) next = next.copy(sectionTimes = sections)
+        val weeks = maxOf(next.totalWeeks, weekCount, currentWeek).coerceIn(1, 30)
+        next = next.copy(totalWeeks = weeks)
+        if (semesterStart.isNotBlank()) next = next.copy(semesterStartDate = semesterStart)
+        save(next)
+        // 「今天是第 N 周」以教务为准：用它把学期开始日期锚定好，之后每周自动推进。
+        val target = currentWeek.coerceAtMost(weeks)
+        if (target > 0 && currentWeekOf(_timetable.value) != target) setCurrentWeek(target)
     }
 
     /**

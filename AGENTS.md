@@ -25,7 +25,7 @@ $env:JAVA_HOME="C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
 cd C:\Users\Lorat\ClassSchedule
 
 .\gradlew.bat :app:assembleDebug --console=plain          # 构建
-.\gradlew.bat :app:testDebugUnitTest --console=plain     # 免模拟器回归：CSV/周次/小部件，15 个用例
+.\gradlew.bat :app:testDebugUnitTest --console=plain     # 免模拟器回归：CSV/周次/进度/小部件，20 个用例
 
 Start-Process "C:\Users\Lorat\Android\Sdk\emulator\emulator.exe" -ArgumentList '-avd','classschedule'   # 需要可视化时
 $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
@@ -40,7 +40,7 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
 & $adb shell input motionevent DOWN 595 1089; Start-Sleep -Milliseconds 900; & $adb shell input motionevent UP 595 1089
 ```
 
-识别逻辑免模拟器回归：`tools/js-harness/README.md`（8 个用例）。
+识别逻辑免模拟器回归：`tools/js-harness/README.md`（9 个用例，含真实教务接口响应 `i_exesac`）。
 
 ## 约定（务必遵守）
 
@@ -60,11 +60,23 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
 
 - **外观与交互已按 WakeUp课程表 重做**（官方规格摘录 `docs/wakeup-official-spec.md`，实现截图 `docs/screenshots/`）：
   主界面 = 日期大标题 + `第N周▾` + 右上自绘 `⊕ ↓ ↑ ⊙` + 日期栏 + 左侧时间轴 + 彩色课程格子；
-  课程支持多时间段（靠 `Course.groupId` 分组）、单双周、冲突三角；课表外观约 20 项可调且即时生效。
+  课程支持多时间段（靠 `Course.groupId` 分组）、单双周、冲突平分；课表外观约 20 项可调且即时生效。
 - 页面：主界面 / 添加·编辑课程 / 已添课程 / 课表设置（数据+外观）/ 上课时间 / 全局设置 / 关于 /
   导入课表（教务·CSV·备份 JSON·HTML·粘贴）/ 导出（备份 JSON、CSV）。
+- **已接上真实教务接口**（示例大学，教务处 SaaS）：页面里只有一个空 table，数据全部来自
+  `POST /Teacher/TimeTableHandler.ashx`（`action=getTeacherTimeTable`）的 JSON，
+  字段 `ClassTimePatterns`(节号×5 分钟) / `CurrentWeekIndex` / `Data[]{LUName,FullName,Building,Classroom,
+  WeekStart,WeekEnd,WeekInterval,TimeSlotStart,TimeSlotEnd,OnMonday..Sunday,StartDay}`。
+  识别器里的 `saas`/`kbExesac` 分支直接消费它：一次拿到**全学期 52 条**每次课 + 精确节次 + 单双周 +
+  **教务自报的当前周与开学日期**（`applyImport` 会落库并锚定当前周）。回归用例：`tools/js-harness` 的
+  `i_exesac`（内联真实响应，脱敏）。
+- 课表渲染规则：同格同名的多段周次合并成一格；本周的课优先，非本周的课只在不与本周重叠时绘制；
+  本周真正冲突才左右平分并标三角。课程详情里有「共 x 周 · 已上 y 周 · 剩 z 周」进度。
 - 桌面小部件「今日课程」已实现并实测（RemoteViews 里**不能用 `<View>`**，色条得用 `TextView`）。
-- 识别管线未动：接口抓包(`net`) → 课表格子(`box`) → 指定容器(`selector`) → 表格网格(`grid`) → 位置聚类(`geometry`)，外加「自动点查询按钮重试」。
-- 已实测：`assembleDebug` 通过；JVM 单测 15/15；js-harness 8/8（上一轮）；模拟器端到端（含小部件真实拖上桌面）。
-- 本轮未做（详见 `PROGRESS.md` §0.8）：多课表切换、`.ics`/分享口令导出、大节、更多小部件样式、自定义时间。
-- 最大未决项：真实教务 `jw.example.edu.cn`（ASP.NET + iframe）无法登录实测；识别不出时向用户索取「详情」弹窗里的 `表格/网格` 整行。
+- 识别管线（DOM 兜底仍在）：接口抓包(`net`) → 课表格子(`box`) → 指定容器(`selector`) → 表格网格(`grid`) → 位置聚类(`geometry`)。
+- 已实测：`assembleDebug` 通过；JVM 单测 20/20；js-harness 9/9；模拟器端到端（真实响应落库 → 第 6 周、第 14 周、小部件）。
+- 排查真实教务页面的办法（会话还有效时）：取 `app_webview/Default/Cookies`，用宿主机直接调
+  `TimeTableHandler.ashx` 拿 JSON 当基准。**Cookie 属敏感信息，用完删掉、不要入库。**
+- 本轮未做（详见 `PROGRESS.md` §0.8 / §0.9）：多课表切换、`.ics`/分享口令导出、其它系统的「大节」兜底、更多小部件样式。
+- 未决：本机到校园网 TCP 不通，「App 直连教务自动更新」没能本机复现；会话过期需用户手动登录一次。
+  真实教务 `jw.example.edu.cn` 的登录实测仍需用户配合。

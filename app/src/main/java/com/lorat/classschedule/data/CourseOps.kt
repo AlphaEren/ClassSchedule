@@ -25,10 +25,25 @@ data class CourseGroup(
     val weeks: List<Int> get() = slots.flatMap { it.weeks }.distinct().sorted()
 }
 
-/** Collapse the flat course list into one entry per course. */
+/**
+ * Collapse the flat course list into one entry per course.
+ * Meetings on the same day and section range are folded together, so a course that runs
+ * 1-6 周 and 9-10 周 shows up as one 时间段 whose week list is the union.
+ */
 fun Timetable.courseGroups(): List<CourseGroup> =
     courses.groupBy { it.groupKey }.map { (key, slots) ->
         val first = slots.first()
+        val merged = slots
+            .groupBy { Triple(it.dayOfWeek, it.startSection, it.endSection) }
+            .map { (_, same) ->
+                val weeks = if (same.any { it.weeks.isEmpty() }) {
+                    emptyList()
+                } else {
+                    same.flatMap { it.weeks }.distinct().sorted()
+                }
+                same.first().copy(weeks = weeks)
+            }
+            .sortedWith(compareBy({ it.dayOfWeek }, { it.startSection }))
         CourseGroup(
             key = key,
             name = first.name,
@@ -37,7 +52,7 @@ fun Timetable.courseGroups(): List<CourseGroup> =
             colorIndex = first.colorIndex,
             credit = first.credit,
             note = first.note,
-            slots = slots.sortedWith(compareBy({ it.dayOfWeek }, { it.startSection })),
+            slots = merged,
         )
     }
 
@@ -73,12 +88,33 @@ fun weekRanges(weeks: List<Int>): List<Pair<Int, Int>> {
     return ranges
 }
 
-/** "1-8,10-16 周", "单周", or 全学期 when the course runs every week. */
+/**
+ * Week set as ranges plus the parity it runs on. Odd/even courses are compressed in "parity space"
+ * so 7,9,11 becomes 7-11 单 rather than three separate weeks — the same notation 教务 systems use.
+ */
+data class WeekSpec(val ranges: List<Pair<Int, Int>>, val parity: String?) {
+    fun text(separator: String): String =
+        ranges.joinToString(separator) { (from, to) -> if (from == to) "$from" else "$from-$to" }
+}
+
+fun weekSpec(weeks: List<Int>): WeekSpec {
+    val sorted = weeks.distinct().sorted()
+    if (sorted.isEmpty()) return WeekSpec(emptyList(), null)
+    return when {
+        sorted.all { it % 2 == 1 } ->
+            WeekSpec(weekRanges(sorted.map { (it + 1) / 2 }).map { (a, b) -> (2 * a - 1) to (2 * b - 1) }, "单")
+        sorted.all { it % 2 == 0 } ->
+            WeekSpec(weekRanges(sorted.map { it / 2 }).map { (a, b) -> (2 * a) to (2 * b) }, "双")
+        else -> WeekSpec(weekRanges(sorted), null)
+    }
+}
+
+/** "1-8,10-16 周", "1-9 周 · 单周", or 全学期 when the course runs every week. */
 fun weeksText(weeks: List<Int>, totalWeeks: Int): String {
     if (weeks.isEmpty() || weeks.size >= totalWeeks) return "全学期"
-    val parity = parityLabel(weeks, totalWeeks)
-    val body = weekRanges(weeks).joinToString(",") { (from, to) -> if (from == to) "$from" else "$from-$to" }
-    return if (parity != null) "$body 周 · $parity" else "$body 周"
+    val spec = weekSpec(weeks)
+    val body = spec.text(",") + " 周"
+    return if (spec.parity != null) "$body · ${spec.parity}周" else body
 }
 
 /** Section range as text: a single section renders as "第3节", a run as "第1-2节". */
@@ -110,3 +146,16 @@ fun Timetable.nextColorIndex(paletteSize: Int): Int {
 /** Distinct course names already used, most recent first — the "历史课程名" quick picks. */
 fun Timetable.knownCourseNames(): List<String> =
     courses.map { it.name }.distinct().takeLast(12).reversed()
+
+/**
+ * 「这门课上到哪了」：以 [currentWeek] 为今天，算出这门课已经上了几周、还剩几周。
+ * 空周次列表表示全学期。
+ */
+fun CourseGroup.progressText(currentWeek: Int, totalWeeks: Int): String {
+    val list = weeks.ifEmpty { (1..maxOf(totalWeeks, currentWeek)).toList() }
+    if (list.isEmpty()) return ""
+    val done = list.count { it < currentWeek }
+    val left = list.count { it > currentWeek }
+    val thisWeek = if (currentWeek in list) "本周有课" else "本周不上"
+    return "共 ${list.size} 周 · 已上 $done 周 · 剩 $left 周 · $thisWeek"
+}

@@ -34,6 +34,10 @@ object WebViewCompat {
             setSupportMultipleWindows(true)
             loadWithOverviewMode = true
             useWideViewPort = true
+            // API 30+ 默认禁止 file://，而「从 HTML 文件导入」与本地调试页都需要它。
+            // 只开放文件读取本身，跨文件 XHR（allowFileAccessFromFileURLs）仍然关闭。
+            allowFileAccess = true
+            allowContentAccess = true
             if (headless) {
                 // Background refresh only reads text + layout, so skip images/cached chrome for speed.
                 loadsImagesAutomatically = false

@@ -28,6 +28,11 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1 -filter "b_*"   # 只跑一�
 | `f_nodays` | 没有星期表头 | box，按列自动编号 d1..d5 |
 | `g_multi` | 一个格子两门课 + rowspan 跨行 | box，拆成 3 门 |
 | `h_xhr` | DOM 里没有课表，课程来自 XHR 返回的 JSON | mode=**net**，6 门，认 `jcs:"0102"` / `jcs:[7,8]` / `zcd:"1-16"` |
+| `i_exesac` | **真实**教务处 SaaS 页面（示例大学）：DOM 只有一个空 table，数据来自 `TimeTableHandler.ashx` | mode=net，**52 门**，节次跨两节（1-2/3-4/5-6/9-10），含单周 1-13、双周 2-12、多段周次；`sections=10`、`sourceCurrentWeek=6`、`semesterStart=2026-09-07` |
+
+> `i_exesac` 里的 JSON 是从真实教务接口抓下来后**脱敏**（去掉学号/备注）内联进页面的，所以它同时是
+> 「这套系统长什么样」的档案：`ClassTimePatterns` 用 5 分钟为单位的节号表示上下课时间，
+> `WeekInterval>0` 表示隔周（奇偶跟着 `WeekStart` 走），星期是 7 个布尔字段。
 
 ## 注意
 

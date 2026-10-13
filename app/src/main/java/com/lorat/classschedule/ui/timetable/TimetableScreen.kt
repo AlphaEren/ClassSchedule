@@ -87,6 +87,7 @@ import com.lorat.classschedule.data.model.Course
 import com.lorat.classschedule.data.model.SectionTime
 import com.lorat.classschedule.data.model.Timetable
 import com.lorat.classschedule.data.parityLabel
+import com.lorat.classschedule.data.progressText
 import com.lorat.classschedule.data.sectionsText
 import com.lorat.classschedule.data.timeText
 import com.lorat.classschedule.data.weeksText
@@ -141,6 +142,7 @@ fun TimetableScreen(
     val today = remember { LocalDate.now() }
     val currentWeek = remember(timetable) { currentWeekOf(timetable) }
     val totalWeeks = maxOf(1, timetable.totalWeeks)
+    val groupCount = remember(timetable.courses) { timetable.courseGroups().size }
     val week = if (followCurrent) currentWeek else selectedWeek.coerceIn(1, totalWeeks)
     val isCurrentWeek = week == currentWeek
 
@@ -174,12 +176,18 @@ fun TimetableScreen(
                 url = school.refreshUrl.ifBlank { school.scheduleUrl },
                 totalWeeks = timetable.totalWeeks,
                 preset = school.parserPreset,
-                onResult = { courses, foundUrl ->
+                onResult = { courses, foundUrl, result ->
                     silentUpdating = false
                     if (courses != null && courses.isNotEmpty()) {
                         scope.launch {
                             if (foundUrl.isNotBlank()) repository.setRefreshUrl(foundUrl)
-                            repository.replaceCourses(courses)
+                            repository.applyImport(
+                                courses = courses,
+                                sectionTimes = result?.sectionTimes.orEmpty(),
+                                semesterStart = result?.semesterStart.orEmpty(),
+                                currentWeek = result?.currentWeek ?: 0,
+                                weekCount = result?.weekCount ?: 0,
+                            )
                         }
                     } else {
                         updateFailed = true
@@ -206,9 +214,15 @@ fun TimetableScreen(
                 isCurrentWeek = isCurrentWeek,
                 hint = if (isCurrentWeek) dayName(today.dayOfWeek.value) else "非本周 · 点此回到本周",
                 subtitle = subtitleOf(timetable),
+                progress = if (timetable.semesterStartDate.isBlank()) {
+                    "未设置开学日期 · 点此说明现在是第几周"
+                } else {
+                    "本周 ${timetable.coursesForWeek(week).size} 节课 · 全学期 $groupCount 门 · 共 $totalWeeks 周"
+                },
                 textOverride = argbOrNull(appearance.uiTextColor),
                 onWeekClick = { showWeekPicker = true },
                 onHintClick = { followCurrent = true },
+                onProgressClick = { showWeekPicker = true },
                 onAddCourse = { onAddCourse(null) },
                 onImport = onOpenImport,
                 onExport = { showExport = true },
@@ -343,9 +357,11 @@ private fun Header(
     isCurrentWeek: Boolean,
     hint: String,
     subtitle: String,
+    progress: String,
     textOverride: Color?,
     onWeekClick: () -> Unit,
     onHintClick: () -> Unit,
+    onProgressClick: () -> Unit,
     onAddCourse: () -> Unit,
     onImport: () -> Unit,
     onExport: () -> Unit,
@@ -380,6 +396,14 @@ private fun Header(
                 )
             }
             if (subtitle.isNotBlank()) Text(subtitle, fontSize = 11.sp, color = muted)
+            if (progress.isNotBlank()) {
+                Text(
+                    progress,
+                    fontSize = 11.sp,
+                    color = if (progress.startsWith("未设置")) accent else muted.copy(alpha = 0.85f),
+                    modifier = Modifier.combinedClickable(onClick = onProgressClick),
+                )
+            }
         }
         HeaderButton(onAddCourse) { AddCircleIcon(tint = tint) }
         HeaderButton(onImport) { ImportIcon(tint = tint) }
@@ -464,28 +488,80 @@ private data class Placed(
     val conflict: Boolean,
 )
 
+/**
+ * Lay out one week of one column.
+ *
+ * A slot usually holds several records that never actually clash, so:
+ *  1. records of the same course with different 周次 (1-6 周 + 9-10 周) merge into one card;
+ *  2. the classes that really run in [week] are drawn first and get the full width;
+ *  3. classes of other weeks are only drawn when they do not overlap something already drawn —
+ *     otherwise their text would sit on top of this week's class (14-16 周的 1-4 节 vs 1-6 周的 1-2 节);
+ *  4. two different classes in the same week are the only case that splits a cell (conflict marker).
+ */
 private fun placement(timetable: Timetable, columns: List<Int>, week: Int): List<Placed> {
     val appearance = timetable.appearance
     val out = mutableListOf<Placed>()
     for ((col, day) in columns.withIndex()) {
         val dayCourses = timetable.courses.filter { it.dayOfWeek == day }
-        for (course in dayCourses) {
-            val thisWeek = course.matchesWeek(week)
-            if (!thisWeek && !appearance.showOtherWeeks) continue
-            val sameRange = dayCourses.filter {
-                it.startSection == course.startSection && it.endSection == course.endSection
+        val (active, others) = dayCourses.partition { it.matchesWeek(week) }
+        val taken = mutableListOf<IntRange>()
+        // 本周要上的课里，互相重叠的（含部分重叠，例如 1-4 节与 3-4 节）左右平分，避免叠字
+        val groups = mutableListOf<MutableList<Placed>>()
+        for (placed in layOutSlot(active, col, thisWeek = true)) {
+            val range = placed.course.startSection..placed.course.endSection
+            val hit = groups.firstOrNull { group ->
+                group.any { it.course.startSection <= range.last && range.first <= it.course.endSection }
             }
-            val conflict = dayCourses.any { other ->
-                other !== course && other.startSection <= course.endSection && course.startSection <= other.endSection
+            if (hit != null) hit.add(placed) else groups.add(mutableListOf(placed))
+        }
+        for (group in groups) {
+            group.forEachIndexed { index, placed ->
+                out.add(placed.copy(slice = index, slices = group.size, conflict = group.size > 1))
             }
+        }
+        for (placed in out.filter { it.col == col && it.thisWeek }) {
+            taken.add(placed.course.startSection..placed.course.endSection)
+        }
+        if (appearance.showOtherWeeks) {
+            // 非本周的课：跳过与已画格子重叠的，剩下的每个都能占满整格
+            val survivors = mutableListOf<Course>()
+            for (placed in layOutSlot(others, col, thisWeek = false)) {
+                val range = placed.course.startSection..placed.course.endSection
+                if (taken.any { it.first <= range.last && range.first <= it.last }) continue
+                if (survivors.any { it.startSection <= range.last && range.first <= it.endSection }) continue
+                survivors.add(placed.course)
+                out.add(placed.copy(slice = 0, slices = 1, conflict = false))
+            }
+        }
+    }
+    return out
+}
+
+/** Same section range: one card per course name; different courses split the cell. */
+private fun layOutSlot(courses: List<Course>, col: Int, thisWeek: Boolean): List<Placed> {
+    val bySlot = LinkedHashMap<Pair<Int, Int>, MutableList<Course>>()
+    for (course in courses) {
+        bySlot.getOrPut(course.startSection to course.endSection) { mutableListOf() }.add(course)
+    }
+    val out = mutableListOf<Placed>()
+    for ((_, sameSlot) in bySlot) {
+        val merged = sameSlot.groupBy { it.name }.values.map { records ->
+            val weeks = if (records.any { it.weeks.isEmpty() }) {
+                emptyList()
+            } else {
+                records.flatMap { it.weeks }.distinct().sorted()
+            }
+            records.first().copy(weeks = weeks)
+        }
+        merged.forEachIndexed { index, course ->
             out.add(
                 Placed(
                     course = course,
                     col = col,
-                    slice = sameRange.indexOf(course).coerceAtLeast(0),
-                    slices = maxOf(1, sameRange.size),
+                    slice = index,
+                    slices = merged.size,
                     thisWeek = thisWeek,
-                    conflict = conflict,
+                    conflict = thisWeek && merged.size > 1,
                 ),
             )
         }
@@ -929,6 +1005,7 @@ private fun CourseDetailDialog(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val currentWeek = currentWeekOf(timetable)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(group.name) },
@@ -941,6 +1018,7 @@ private fun CourseDetailDialog(
                     }
                 }
                 DetailRow("周次", group.slots.map { weeksText(it.weeks, timetable.totalWeeks) }.distinct().joinToString(" / "))
+                DetailRow("进度", group.progressText(currentWeek, timetable.totalWeeks))
                 if (group.teacher.isNotBlank()) DetailRow("教师", group.teacher)
                 if (group.location.isNotBlank()) DetailRow("地点", group.location)
                 if (group.credit.isNotBlank()) DetailRow("学分", group.credit)
@@ -1002,19 +1080,19 @@ private fun SilentUpdater(
     url: String,
     totalWeeks: Int,
     preset: String,
-    onResult: (List<Course>?, String) -> Unit,
+    onResult: (List<Course>?, String, TimetableExtractor.ScrapeResult?) -> Unit,
 ) {
     var answered by remember { mutableStateOf(false) }
 
-    fun answer(courses: List<Course>?, foundUrl: String) {
+    fun answer(courses: List<Course>?, foundUrl: String, result: TimetableExtractor.ScrapeResult?) {
         if (answered) return
         answered = true
-        onResult(courses, foundUrl)
+        onResult(courses, foundUrl, result)
     }
 
     LaunchedEffect(url) {
         delay(15_000)
-        if (!answered) answer(null, "")
+        if (!answered) answer(null, "", null)
     }
 
     AndroidView(
@@ -1031,12 +1109,12 @@ private fun SilentUpdater(
                             emptyList()
                         }
                         when {
-                            courses.isNotEmpty() || answered -> answer(courses.ifEmpty { null }, result.foundUrl)
+                            courses.isNotEmpty() || answered -> answer(courses.ifEmpty { null }, result.foundUrl, result)
                             attempt < 2 -> {
                                 attempt += 1
                                 postDelayed({ runScrape() }, 1800)
                             }
-                            else -> answer(null, result.foundUrl)
+                            else -> answer(null, result.foundUrl, result)
                         }
                     }
                 }
@@ -1044,7 +1122,7 @@ private fun SilentUpdater(
                     web = this,
                     headless = true,
                     onPageFinished = { postDelayed({ runScrape() }, 1200) },
-                    onError = { answer(null, "") },
+                    onError = { answer(null, "", null) },
                 )
                 loadUrl(url)
             }

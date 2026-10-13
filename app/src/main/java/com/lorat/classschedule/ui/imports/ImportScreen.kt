@@ -254,13 +254,19 @@ fun ImportScreen(
             html = content,
             totalWeeks = timetable.totalWeeks,
             preset = timetable.school?.parserPreset ?: "auto",
-            onResult = { courses ->
+            onResult = { courses, result ->
                 html = null
                 if (courses == null || courses.isEmpty()) {
                     report("HTML 里没识别出课表（可试试在教务页面直接导入）")
                 } else {
                     scope.launch {
-                        repository.replaceCourses(courses)
+                        repository.applyImport(
+                            courses = courses,
+                            sectionTimes = result?.sectionTimes.orEmpty(),
+                            semesterStart = result?.semesterStart.orEmpty(),
+                            currentWeek = result?.currentWeek ?: 0,
+                            weekCount = result?.weekCount ?: 0,
+                        )
                         report("已从 HTML 导入 ${courses.size} 个时间段")
                     }
                 }
@@ -275,19 +281,19 @@ private fun HtmlImportRunner(
     html: String,
     totalWeeks: Int,
     preset: String,
-    onResult: (List<Course>?) -> Unit,
+    onResult: (List<Course>?, TimetableExtractor.ScrapeResult?) -> Unit,
 ) {
     var answered by remember { mutableStateOf(false) }
 
-    fun answer(courses: List<Course>?) {
+    fun answer(courses: List<Course>?, result: TimetableExtractor.ScrapeResult?) {
         if (answered) return
         answered = true
-        onResult(courses)
+        onResult(courses, result)
     }
 
     LaunchedEffect(html) {
         delay(20_000)
-        if (!answered) answer(null)
+        if (!answered) answer(null, null)
     }
 
     AndroidView(
@@ -303,11 +309,11 @@ private fun HtmlImportRunner(
                                 val result = TimetableExtractor.parseScrapeResult(raw)
                                 val courses =
                                     if (result.ok) TimetableExtractor.coursesFrom(result, totalWeeks) else emptyList()
-                                answer(courses.ifEmpty { null })
+                                answer(courses.ifEmpty { null }, result)
                             }
                         }, 800)
                     },
-                    onError = { answer(null) },
+                    onError = { answer(null, null) },
                 )
                 loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
             }

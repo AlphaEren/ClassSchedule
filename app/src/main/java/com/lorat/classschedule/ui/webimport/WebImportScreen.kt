@@ -92,12 +92,22 @@ fun WebImportScreen(
                     if (autoMode) {
                         scope.launch {
                             if (found.isNotBlank()) repository.setRefreshUrl(found)
-                            repository.replaceCourses(courses)
+                            repository.applyImport(
+                                courses = courses,
+                                sectionTimes = result.sectionTimes,
+                                semesterStart = result.semesterStart,
+                                currentWeek = result.currentWeek,
+                                weekCount = result.weekCount,
+                            )
                             onFinished()
                         }
                     } else {
                         parsed = courses
-                        status = "识别到 ${courses.size} 门课程（${systemLabel(result.system)}）"
+                        status = buildString {
+                            append("识别到 ${courses.size} 门课程（${systemLabel(result.system)}）")
+                            if (result.sectionTimes.isNotEmpty()) append("，${result.sectionTimes.size} 节课时间")
+                            if (result.currentWeek > 0) append("，教务说现在是第 ${result.currentWeek} 周")
+                        }
                         scanning = false
                         showPreview = true
                         if (found.isNotBlank()) scope.launch { repository.setRefreshUrl(found) }
@@ -129,6 +139,23 @@ fun WebImportScreen(
         if (auto && !revealPage) {
             delay(1500)
             webViewState.value?.let { scrape(it, true, 1) }
+        }
+    }
+
+    /** 落库：课程之外，把教务自报的上课时间/开学日期/当前周一起带进去。 */
+    fun applyParsed() {
+        val courses = parsed
+        if (courses.isEmpty()) return
+        val r = lastResult
+        scope.launch {
+            repository.applyImport(
+                courses = courses,
+                sectionTimes = r?.sectionTimes.orEmpty(),
+                semesterStart = r?.semesterStart.orEmpty(),
+                currentWeek = r?.currentWeek ?: 0,
+                weekCount = r?.weekCount ?: 0,
+            )
+            onFinished()
         }
     }
 
@@ -172,12 +199,7 @@ fun WebImportScreen(
                             modifier = Modifier.weight(1f),
                         ) { Text(if (scanning) "识别中…" else "识别课表") }
                         Button(
-                            onClick = {
-                                scope.launch {
-                                    repository.replaceCourses(parsed)
-                                    onFinished()
-                                }
-                            },
+                            onClick = { applyParsed() },
                             enabled = parsed.isNotEmpty(),
                             modifier = Modifier.weight(1f),
                         ) { Text("导入 (${parsed.size})") }
@@ -258,10 +280,7 @@ fun WebImportScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showPreview = false
-                    scope.launch {
-                        repository.replaceCourses(parsed)
-                        onFinished()
-                    }
+                    applyParsed()
                 }) { Text("直接导入") }
             },
         )

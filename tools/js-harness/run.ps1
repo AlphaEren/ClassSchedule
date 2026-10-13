@@ -61,6 +61,8 @@ Get-ChildItem (Join-Path $PSScriptRoot "cases") -Filter *.html | Where-Object { 
   "ok=$($o.ok) mode=$($o.mode) preset=$($o.preset) system=$($o.system)"
   "diag=$($o.diagnostics)"
   if ($o.error) { "error=$($o.error) sample=$($o.sample)" }
+  if ($o.st) { "sections=$($o.st.Count)  first=$($o.st[0].s)-$($o.st[0].e)  last=$($o.st[-1].s)-$($o.st[-1].e)" }
+  if ($o.week) { "sourceCurrentWeek=$($o.week)  semesterStart=$($o.start)  lastTeachingWeek=$($o.weeks)" }
   if ($o.courses) {
     "courses=$($o.courses.Count)"
     foreach ($c in $o.courses) { "  {0} | d{1} {2}-{3} | w[{4}] | {5} | {6}" -f $c.n, $c.d, $c.s, $c.e, ($c.w -join ','), $c.t, $c.r }
