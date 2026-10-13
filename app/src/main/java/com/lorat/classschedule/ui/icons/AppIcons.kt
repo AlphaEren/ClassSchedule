@@ -90,3 +90,21 @@ fun ChevronDownIcon(tint: Color, size: Dp = 16.dp, modifier: Modifier = Modifier
         line(tint, Offset(0.78f, 0.38f), Offset(0.5f, 0.66f))
     }
 }
+
+/** ‹ — 上一周. */
+@Composable
+fun ChevronLeftIcon(tint: Color, size: Dp = 18.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        line(tint, Offset(0.62f, 0.22f), Offset(0.34f, 0.5f))
+        line(tint, Offset(0.34f, 0.5f), Offset(0.62f, 0.78f))
+    }
+}
+
+/** › — 下一周. */
+@Composable
+fun ChevronRightIcon(tint: Color, size: Dp = 18.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        line(tint, Offset(0.38f, 0.22f), Offset(0.66f, 0.5f))
+        line(tint, Offset(0.66f, 0.5f), Offset(0.38f, 0.78f))
+    }
+}

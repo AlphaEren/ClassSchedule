@@ -72,6 +72,9 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
   `i_exesac`（内联真实响应，脱敏）。
 - 课表渲染规则：同格同名的多段周次合并成一格；本周的课优先，非本周的课只在不与本周重叠时绘制；
   本周真正冲突才左右平分并标三角。课程详情里有「共 x 周 · 已上 y 周 · 剩 z 周」进度。
+- 翻周：标题 `‹ 第N周 ▾ ›` 单步 + 课表区 `HorizontalPager` 左右滑动翻周（一页一周）。
+  改同步逻辑时注意：`pagerState.currentPage` 在拖动中就会变，用它驱动 `LaunchedEffect` 会打断手势，
+  要用 `settledPage` 且拖动中不要主动 `animateScrollToPage`。
 - 桌面小部件「今日课程」已实现并实测（RemoteViews 里**不能用 `<View>`**，色条得用 `TextView`）。
 - 识别管线（DOM 兜底仍在）：接口抓包(`net`) → 课表格子(`box`) → 指定容器(`selector`) → 表格网格(`grid`) → 位置聚类(`geometry`)。
 - 已实测：`assembleDebug` 通过；JVM 单测 20/20；js-harness 9/9；模拟器端到端（真实响应落库 → 第 6 周、第 14 周、小部件）。

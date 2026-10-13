@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -97,6 +100,8 @@ import com.lorat.classschedule.ui.argbOrNull
 import com.lorat.classschedule.ui.courseColor
 import com.lorat.classschedule.ui.icons.AddCircleIcon
 import com.lorat.classschedule.ui.icons.ChevronDownIcon
+import com.lorat.classschedule.ui.icons.ChevronLeftIcon
+import com.lorat.classschedule.ui.icons.ChevronRightIcon
 import com.lorat.classschedule.ui.icons.ExportIcon
 import com.lorat.classschedule.ui.icons.ImportIcon
 import com.lorat.classschedule.ui.icons.MoreCircleIcon
@@ -144,6 +149,13 @@ fun TimetableScreen(
     val totalWeeks = maxOf(1, timetable.totalWeeks)
     val groupCount = remember(timetable.courses) { timetable.courseGroups().size }
     val week = if (followCurrent) currentWeek else selectedWeek.coerceIn(1, totalWeeks)
+
+    /** 切到某一周：离开当前周后就不再跟随「本周」，回到当前周则重新跟随。 */
+    fun goToWeek(target: Int) {
+        val clamped = target.coerceIn(1, totalWeeks)
+        followCurrent = clamped == currentWeek
+        selectedWeek = clamped
+    }
     val isCurrentWeek = week == currentWeek
 
     val exportTimetable = rememberTimetableExporter(repository) { message ->
@@ -211,6 +223,7 @@ fun TimetableScreen(
             Header(
                 date = today.format(DateFormatter),
                 week = week,
+                totalWeeks = totalWeeks,
                 isCurrentWeek = isCurrentWeek,
                 hint = if (isCurrentWeek) dayName(today.dayOfWeek.value) else "非本周 · 点此回到本周",
                 subtitle = subtitleOf(timetable),
@@ -221,6 +234,7 @@ fun TimetableScreen(
                 },
                 textOverride = argbOrNull(appearance.uiTextColor),
                 onWeekClick = { showWeekPicker = true },
+                onWeekStep = { delta -> goToWeek(week + delta) },
                 onHintClick = { followCurrent = true },
                 onProgressClick = { showWeekPicker = true },
                 onAddCourse = { onAddCourse(null) },
@@ -248,6 +262,12 @@ fun TimetableScreen(
                 TimetableGrid(
                     timetable = timetable,
                     week = week,
+                    onWeekChange = { target ->
+                        if (target != week) {
+                            followCurrent = target == currentWeek
+                            selectedWeek = target
+                        }
+                    },
                     onCourseClick = { detailCourse = it },
                     onCourseLongClick = { actionCourse = it },
                     modifier = Modifier.fillMaxSize(),
@@ -354,12 +374,14 @@ private fun subtitleOf(timetable: Timetable): String {
 private fun Header(
     date: String,
     week: Int,
+    totalWeeks: Int,
     isCurrentWeek: Boolean,
     hint: String,
     subtitle: String,
     progress: String,
     textOverride: Color?,
     onWeekClick: () -> Unit,
+    onWeekStep: (Int) -> Unit,
     onHintClick: () -> Unit,
     onProgressClick: () -> Unit,
     onAddCourse: () -> Unit,
@@ -377,6 +399,7 @@ private fun Header(
         Column(Modifier.weight(1f)) {
             Text(date, fontSize = 13.sp, color = muted, fontWeight = FontWeight.Medium)
             Row(verticalAlignment = Alignment.CenterVertically) {
+                WeekStepButton(enabled = week > 1, right = false, tint = tint) { onWeekStep(-1) }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).combinedClickable(onClick = onWeekClick),
@@ -385,7 +408,8 @@ private fun Header(
                     Spacer(Modifier.width(4.dp))
                     ChevronDownIcon(tint = tint, size = 16.dp)
                 }
-                Spacer(Modifier.width(10.dp))
+                WeekStepButton(enabled = week < totalWeeks, right = true, tint = tint) { onWeekStep(1) }
+                Spacer(Modifier.width(6.dp))
                 Text(
                     text = hint,
                     fontSize = 12.sp,
@@ -418,6 +442,21 @@ private fun HeaderButton(onClick: () -> Unit, icon: @Composable () -> Unit) {
         modifier = Modifier.size(40.dp).clip(CircleShape).combinedClickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { icon() }
+}
+
+/** ‹ › 快速翻周；到头了就把箭头淡掉。 */
+@Composable
+private fun WeekStepButton(enabled: Boolean, right: Boolean, tint: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .combinedClickable(onClick = { if (enabled) onClick() }),
+        contentAlignment = Alignment.Center,
+    ) {
+        val color = if (enabled) tint else tint.copy(alpha = 0.22f)
+        if (right) ChevronRightIcon(tint = color) else ChevronLeftIcon(tint = color)
+    }
 }
 
 @Composable
@@ -573,6 +612,7 @@ private fun layOutSlot(courses: List<Course>, col: Int, thisWeek: Boolean): List
 private fun TimetableGrid(
     timetable: Timetable,
     week: Int,
+    onWeekChange: (Int) -> Unit,
     onCourseClick: (CourseGroup) -> Unit,
     onCourseLongClick: (CourseGroup) -> Unit,
     modifier: Modifier = Modifier,
@@ -581,85 +621,135 @@ private fun TimetableGrid(
     val columns = dayColumns(appearance.weekStartSunday, appearance.showWeekend)
     val sections = timetable.gridSectionCount()
     val rowHeight = appearance.cellHeight.dp
+    val totalWeeks = maxOf(1, timetable.totalWeeks)
     val groups = remember(timetable.courses) { timetable.courseGroups().associateBy { it.key } }
     val todayCol = columns.indexOf(LocalDate.now().dayOfWeek.value)
     val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (appearance.gridLines) 0.12f else 0f)
     val primary = MaterialTheme.colorScheme.primary
 
+    // 左右滑动翻周：一页一周，表头/面板改周时也跟着滑过去。
+    // 注意不要在手指拖动过程中主动滚动，否则会把用户的手势打断（会表现为「滑了没反应」）。
+    val pagerState = rememberPagerState(initialPage = (week - 1).coerceIn(0, totalWeeks - 1)) { totalWeeks }
+    LaunchedEffect(week, totalWeeks) {
+        val target = (week - 1).coerceIn(0, totalWeeks - 1)
+        if (!pagerState.isScrollInProgress && pagerState.settledPage != target) {
+            pagerState.animateScrollToPage(target)
+        }
+    }
+    LaunchedEffect(pagerState) {
+        // settledPage 只在滚动停下后才变，拖动中不会来回触发
+        snapshotFlow { pagerState.settledPage }.collect { page -> onWeekChange(page + 1) }
+    }
+
     Column(modifier.verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth()) {
             AxisColumn(timetable = timetable, sections = sections, rowHeight = rowHeight)
-            BoxWithConstraints(
-                Modifier.weight(1f).height(rowHeight * sections),
-            ) {
-                val colWidth = maxWidth / columns.size
-                Box(
-                    Modifier.fillMaxSize().drawBehind {
-                        val rowPx = rowHeight.toPx()
-                        val colPx = colWidth.toPx()
-                        val lineWidthPx = 1.dp.toPx()
-                        if (todayCol >= 0) {
-                            drawRect(
-                                color = primary.copy(alpha = 0.05f),
-                                topLeft = Offset(colPx * todayCol, 0f),
-                                size = Size(colPx, size.height),
-                            )
-                        }
-                        if (appearance.gridLines) {
-                            for (s in 0..sections) {
-                                val y = (rowPx * s).coerceAtMost(size.height - lineWidthPx)
-                                drawLine(lineColor, Offset(0f, y), Offset(size.width, y), lineWidthPx)
-                            }
-                            for (c in 1 until columns.size) {
-                                val x = colPx * c
-                                drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), lineWidthPx)
-                            }
-                        }
-                    },
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f).height(rowHeight * sections),
+                beyondViewportPageCount = 1,
+            ) { page ->
+                WeekPage(
+                    timetable = timetable,
+                    week = page + 1,
+                    columns = columns,
+                    sections = sections,
+                    rowHeight = rowHeight,
+                    groups = groups,
+                    todayCol = todayCol,
+                    lineColor = lineColor,
+                    primary = primary,
+                    onCourseClick = onCourseClick,
+                    onCourseLongClick = onCourseLongClick,
                 )
-                val placed = remember(timetable.courses, columns, week, appearance) {
-                    placement(timetable, columns, week)
-                }
-                for (p in placed) {
-                    val group = groups[p.course.groupKey] ?: continue
-                    val sliceWidth = colWidth / p.slices
-                    Box(
-                        Modifier
-                            .offset(
-                                x = colWidth * p.col + sliceWidth * p.slice,
-                                y = rowHeight * (p.course.startSection - 1),
-                            )
-                            .width(sliceWidth)
-                            .height(rowHeight * (p.course.endSection - p.course.startSection + 1))
-                            .padding(1.5.dp),
-                    ) {
-                        CourseCell(
-                            course = p.course,
-                            group = group,
-                            thisWeek = p.thisWeek,
-                            conflict = p.conflict,
-                            appearance = appearance,
-                            span = p.course.endSection - p.course.startSection + 1,
-                            totalWeeks = maxOf(1, timetable.totalWeeks),
-                            sectionTimes = timetable.sectionTimes,
-                            onClick = { onCourseClick(group) },
-                            onLongClick = { onCourseLongClick(group) },
-                        )
-                    }
-                }
-                if (timetable.courses.isEmpty() && appearance.showEmptyImage) {
-                    Box(Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.TopCenter) {
-                        Text(
-                            "还没有课程\n点右上角 ⊕ 手动添加，或 ⤓ 从教务/文件导入",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        )
-                    }
-                }
             }
         }
         Spacer(Modifier.height((appearance.extraBottomSpace + 24).dp))
+    }
+}
+
+/** One week of the grid (a page of the swipeable timetable). */
+@Composable
+private fun WeekPage(
+    timetable: Timetable,
+    week: Int,
+    columns: List<Int>,
+    sections: Int,
+    rowHeight: Dp,
+    groups: Map<String, CourseGroup>,
+    todayCol: Int,
+    lineColor: Color,
+    primary: Color,
+    onCourseClick: (CourseGroup) -> Unit,
+    onCourseLongClick: (CourseGroup) -> Unit,
+) {
+    val appearance = timetable.appearance
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val colWidth = maxWidth / columns.size
+        Box(
+            Modifier.fillMaxSize().drawBehind {
+                val rowPx = rowHeight.toPx()
+                val colPx = colWidth.toPx()
+                val lineWidthPx = 1.dp.toPx()
+                if (todayCol >= 0) {
+                    drawRect(
+                        color = primary.copy(alpha = 0.05f),
+                        topLeft = Offset(colPx * todayCol, 0f),
+                        size = Size(colPx, size.height),
+                    )
+                }
+                if (appearance.gridLines) {
+                    for (s in 0..sections) {
+                        val y = (rowPx * s).coerceAtMost(size.height - lineWidthPx)
+                        drawLine(lineColor, Offset(0f, y), Offset(size.width, y), lineWidthPx)
+                    }
+                    for (c in 1 until columns.size) {
+                        val x = colPx * c
+                        drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), lineWidthPx)
+                    }
+                }
+            },
+        )
+        val placed = remember(timetable.courses, columns, week, appearance) {
+            placement(timetable, columns, week)
+        }
+        for (p in placed) {
+            val group = groups[p.course.groupKey] ?: continue
+            val sliceWidth = colWidth / p.slices
+            Box(
+                Modifier
+                    .offset(
+                        x = colWidth * p.col + sliceWidth * p.slice,
+                        y = rowHeight * (p.course.startSection - 1),
+                    )
+                    .width(sliceWidth)
+                    .height(rowHeight * (p.course.endSection - p.course.startSection + 1))
+                    .padding(1.5.dp),
+            ) {
+                CourseCell(
+                    course = p.course,
+                    group = group,
+                    thisWeek = p.thisWeek,
+                    conflict = p.conflict,
+                    appearance = appearance,
+                    span = p.course.endSection - p.course.startSection + 1,
+                    totalWeeks = maxOf(1, timetable.totalWeeks),
+                    sectionTimes = timetable.sectionTimes,
+                    onClick = { onCourseClick(group) },
+                    onLongClick = { onCourseLongClick(group) },
+                )
+            }
+        }
+        if (timetable.courses.isEmpty() && appearance.showEmptyImage) {
+            Box(Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.TopCenter) {
+                Text(
+                    "还没有课程\n点右上角 ⊕ 手动添加，或 ⤓ 从教务/文件导入",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
     }
 }
 
