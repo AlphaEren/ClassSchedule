@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">课表助手</string>
+    <string name="widget_today_label">今日课程</string>
 </resources>

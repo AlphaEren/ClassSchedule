@@ -10,7 +10,10 @@ data class SectionTime(
     val end: String,
 )
 
-/** A single class meeting: a course occupies [startSection]..[endSection] on [dayOfWeek]. */
+/**
+ * A single class meeting: a course occupies [startSection]..[endSection] on [dayOfWeek].
+ * One course may hold several meetings — they share [groupId], which is how "多课时" works.
+ */
 @Serializable
 data class Course(
     val id: String,
@@ -22,8 +25,15 @@ data class Course(
     val endSection: Int,
     val weeks: List<Int> = emptyList(),
     val colorIndex: Int = 0,
+    val groupId: String = "",
+    /** Course-level extras, duplicated across the meetings of one course. */
+    val credit: String = "",
+    val note: String = "",
 ) {
     fun matchesWeek(week: Int): Boolean = weeks.isEmpty() || week in weeks
+
+    /** Imported courses have no group id, so each of them is a group of its own. */
+    val groupKey: String get() = groupId.ifBlank { id }
 }
 
 /** The academic system this timetable was imported from. */
@@ -41,11 +51,15 @@ data class School(
 @Serializable
 data class Timetable(
     val school: School? = null,
+    /** Free-form term label shown under the week title, e.g. "2024-2025 夏季 第1学期". */
+    val semesterName: String = "",
+    /** First day of week 1; its weekday decides the column order (see [Appearance.weekStartSunday]). */
     val semesterStartDate: String = "",
     val totalWeeks: Int = 20,
     val sectionTimes: List<SectionTime> = defaultSectionTimes(),
     val courses: List<Course> = emptyList(),
     val lastUpdatedAt: Long = 0L,
+    val appearance: Appearance = Appearance(),
 ) {
     fun coursesForWeek(week: Int): List<Course> = courses.filter { it.matchesWeek(week) }
 }

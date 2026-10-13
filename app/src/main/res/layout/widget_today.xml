@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  今日课程 widget. Rows are declared explicitly (rather than inflated at runtime) because
+  every row needs its own view ids for RemoteViews to address them.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#6B7280"
+        android:textSize="11sp"
+        android:text="@string/widget_today_label" />
+
+    <TextView
+        android:id="@+id/widget_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="14dp"
+        android:paddingBottom="6dp"
+        android:textColor="#6B7280"
+        android:textSize="13sp"
+        android:visibility="gone"
+        android:text="今天没有课，好好休息" />
+
+    <LinearLayout android:id="@+id/widget_row_1" style="@style/WidgetRow">
+        <TextView android:id="@+id/widget_bar_1" style="@style/WidgetBar" />
+        <LinearLayout style="@style/WidgetRowText">
+            <TextView android:id="@+id/widget_name_1" style="@style/WidgetName" />
+            <TextView android:id="@+id/widget_meta_1" style="@style/WidgetMeta" />
+        </LinearLayout>
+        <TextView android:id="@+id/widget_time_1" style="@style/WidgetTime" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widget_row_2" style="@style/WidgetRow">
+        <TextView android:id="@+id/widget_bar_2" style="@style/WidgetBar" />
+        <LinearLayout style="@style/WidgetRowText">
+            <TextView android:id="@+id/widget_name_2" style="@style/WidgetName" />
+            <TextView android:id="@+id/widget_meta_2" style="@style/WidgetMeta" />
+        </LinearLayout>
+        <TextView android:id="@+id/widget_time_2" style="@style/WidgetTime" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widget_row_3" style="@style/WidgetRow">
+        <TextView android:id="@+id/widget_bar_3" style="@style/WidgetBar" />
+        <LinearLayout style="@style/WidgetRowText">
+            <TextView android:id="@+id/widget_name_3" style="@style/WidgetName" />
+            <TextView android:id="@+id/widget_meta_3" style="@style/WidgetMeta" />
+        </LinearLayout>
+        <TextView android:id="@+id/widget_time_3" style="@style/WidgetTime" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widget_row_4" style="@style/WidgetRow">
+        <TextView android:id="@+id/widget_bar_4" style="@style/WidgetBar" />
+        <LinearLayout style="@style/WidgetRowText">
+            <TextView android:id="@+id/widget_name_4" style="@style/WidgetName" />
+            <TextView android:id="@+id/widget_meta_4" style="@style/WidgetMeta" />
+        </LinearLayout>
+        <TextView android:id="@+id/widget_time_4" style="@style/WidgetTime" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widget_row_5" style="@style/WidgetRow">
+        <TextView android:id="@+id/widget_bar_5" style="@style/WidgetBar" />
+        <LinearLayout style="@style/WidgetRowText">
+            <TextView android:id="@+id/widget_name_5" style="@style/WidgetName" />
+            <TextView android:id="@+id/widget_meta_5" style="@style/WidgetMeta" />
+        </LinearLayout>
+        <TextView android:id="@+id/widget_time_5" style="@style/WidgetTime" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widget_row_6" style="@style/WidgetRow">
+        <TextView android:id="@+id/widget_bar_6" style="@style/WidgetBar" />
+        <LinearLayout style="@style/WidgetRowText">
+            <TextView android:id="@+id/widget_name_6" style="@style/WidgetName" />
+            <TextView android:id="@+id/widget_meta_6" style="@style/WidgetMeta" />
+        </LinearLayout>
+        <TextView android:id="@+id/widget_time_6" style="@style/WidgetTime" />
+    </LinearLayout>
+</LinearLayout>

@@ -5,8 +5,14 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.lorat.classschedule.data.ScheduleRepository
+import com.lorat.classschedule.ui.course.CourseEditScreen
+import com.lorat.classschedule.ui.course.CourseListScreen
+import com.lorat.classschedule.ui.imports.ImportScreen
 import com.lorat.classschedule.ui.school.AddSchoolScreen
-import com.lorat.classschedule.ui.settings.SettingsScreen
+import com.lorat.classschedule.ui.settings.AboutScreen
+import com.lorat.classschedule.ui.settings.GlobalSettingsScreen
+import com.lorat.classschedule.ui.settings.ScheduleSettingsScreen
+import com.lorat.classschedule.ui.settings.SectionTimesScreen
 import com.lorat.classschedule.ui.timetable.TimetableScreen
 import com.lorat.classschedule.ui.webimport.WebImportScreen
 
@@ -23,17 +29,58 @@ fun MainNavigation(repository: ScheduleRepository) {
           TimetableScreen(
             repository = repository,
             onAddSchool = { backStack.add(AddSchoolRoute) },
-            onOpenSettings = { backStack.add(SettingsRoute) },
-            onAutoUpdate = { backStack.add(WebImportRoute(auto = true)) },
+            onAddCourse = { groupKey -> backStack.add(CourseEditRoute(groupKey)) },
+            onOpenScheduleSettings = { backStack.add(ScheduleSettingsRoute) },
+            onOpenGlobalSettings = { backStack.add(GlobalSettingsRoute) },
+            onOpenCourseList = { backStack.add(CourseListRoute) },
+            onOpenSectionTimes = { backStack.add(SectionTimesRoute) },
+            onOpenImport = { backStack.add(ImportRoute) },
             onManualUpdate = { backStack.add(WebImportRoute(auto = false)) },
+            onAbout = { backStack.add(AboutRoute) },
           )
         }
-        entry<SettingsRoute> {
-          SettingsScreen(
+        entry<ScheduleSettingsRoute> {
+          ScheduleSettingsScreen(
             repository = repository,
             onBack = { backStack.removeLastOrNull() },
-            onReimport = { backStack.add(WebImportRoute(auto = false)) },
-            onAddSchool = { backStack.add(AddSchoolRoute) },
+            onOpenSectionTimes = { backStack.add(SectionTimesRoute) },
+            onOpenCourseList = { backStack.add(CourseListRoute) },
+          )
+        }
+        entry<GlobalSettingsRoute> {
+          GlobalSettingsScreen(
+            repository = repository,
+            onBack = { backStack.removeLastOrNull() },
+            onOpenScheduleSettings = { backStack.add(ScheduleSettingsRoute) },
+            onAbout = { backStack.add(AboutRoute) },
+          )
+        }
+        entry<SectionTimesRoute> {
+          SectionTimesScreen(repository = repository, onBack = { backStack.removeLastOrNull() })
+        }
+        entry<AboutRoute> {
+          AboutScreen(onBack = { backStack.removeLastOrNull() })
+        }
+        entry<CourseListRoute> {
+          CourseListScreen(
+            repository = repository,
+            onBack = { backStack.removeLastOrNull() },
+            onEdit = { key -> backStack.add(CourseEditRoute(key)) },
+            onAddCourse = { backStack.add(CourseEditRoute(null)) },
+          )
+        }
+        entry<CourseEditRoute> { route ->
+          CourseEditScreen(
+            repository = repository,
+            groupKey = route.groupKey,
+            onBack = { backStack.removeLastOrNull() },
+          )
+        }
+        entry<ImportRoute> {
+          ImportScreen(
+            repository = repository,
+            onBack = { backStack.removeLastOrNull() },
+            onOpenSchoolImport = { backStack.add(AddSchoolRoute) },
           )
         }
         entry<AddSchoolRoute> {

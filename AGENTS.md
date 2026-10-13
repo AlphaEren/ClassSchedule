@@ -25,6 +25,7 @@ $env:JAVA_HOME="C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
 cd C:\Users\Lorat\ClassSchedule
 
 .\gradlew.bat :app:assembleDebug --console=plain          # 构建
+.\gradlew.bat :app:testDebugUnitTest --console=plain     # 免模拟器回归：CSV/周次/小部件，15 个用例
 
 Start-Process "C:\Users\Lorat\Android\Sdk\emulator\emulator.exe" -ArgumentList '-avd','classschedule'   # 需要可视化时
 $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
@@ -34,6 +35,9 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
 
 # 截图：必须走 sdcard，PowerShell 的 `>` 重定向会破坏二进制
 & $adb shell screencap -p /sdcard/s.png; & $adb pull /sdcard/s.png .\s.png; & $adb shell rm /sdcard/s.png
+
+# 长按（`input swipe` 模拟不出长按，用 motionevent）
+& $adb shell input motionevent DOWN 595 1089; Start-Sleep -Milliseconds 900; & $adb shell input motionevent UP 595 1089
 ```
 
 识别逻辑免模拟器回归：`tools/js-harness/README.md`（8 个用例）。
@@ -54,7 +58,13 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
 
 ## 当前状态速览（2026-10-13）
 
-- 识别管线：接口抓包(`net`) → 课表格子(`box`) → 指定容器(`selector`) → 表格网格(`grid`) → 位置聚类(`geometry`)，外加「自动点查询按钮重试」。
-- 已完成：学校记忆、静默自动更新、连堂课合并为一张跨行卡片渲染。
-- 已实测：`assembleDebug` 通过；js-harness 8/8；模拟器端到端（卡片式 12 门 / 正方 12 门 / 接口型 7 门）。
+- **外观与交互已按 WakeUp课程表 重做**（官方规格摘录 `docs/wakeup-official-spec.md`，实现截图 `docs/screenshots/`）：
+  主界面 = 日期大标题 + `第N周▾` + 右上自绘 `⊕ ↓ ↑ ⊙` + 日期栏 + 左侧时间轴 + 彩色课程格子；
+  课程支持多时间段（靠 `Course.groupId` 分组）、单双周、冲突三角；课表外观约 20 项可调且即时生效。
+- 页面：主界面 / 添加·编辑课程 / 已添课程 / 课表设置（数据+外观）/ 上课时间 / 全局设置 / 关于 /
+  导入课表（教务·CSV·备份 JSON·HTML·粘贴）/ 导出（备份 JSON、CSV）。
+- 桌面小部件「今日课程」已实现并实测（RemoteViews 里**不能用 `<View>`**，色条得用 `TextView`）。
+- 识别管线未动：接口抓包(`net`) → 课表格子(`box`) → 指定容器(`selector`) → 表格网格(`grid`) → 位置聚类(`geometry`)，外加「自动点查询按钮重试」。
+- 已实测：`assembleDebug` 通过；JVM 单测 15/15；js-harness 8/8（上一轮）；模拟器端到端（含小部件真实拖上桌面）。
+- 本轮未做（详见 `PROGRESS.md` §0.8）：多课表切换、`.ics`/分享口令导出、大节、更多小部件样式、自定义时间。
 - 最大未决项：真实教务 `jw.example.edu.cn`（ASP.NET + iframe）无法登录实测；识别不出时向用户索取「详情」弹窗里的 `表格/网格` 整行。
