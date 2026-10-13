@@ -71,8 +71,12 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
   **教务自报的当前周与开学日期**（`applyImport` 会落库并锚定当前周）。回归用例：`tools/js-harness` 的
   `i_exesac`（内联真实响应，脱敏）。
 - 课表渲染规则：同格同名的多段周次合并成一格；本周的课优先，非本周的课只在不与本周重叠时绘制；
-  本周真正冲突才左右平分并标三角。课程详情里有「共 x 周 · 已上 y 周 · 剩 z 周」进度。
+  本周真正冲突才左右平分并标三角。非本周的课=整格降透明度+格子底部 `非本周` 纯文字标签，
+  `⋯` 面板里有「隐藏非本周课程」开关（对应外观设置 `showOtherWeeks`）。
+  卡片底色与不透明表面色合成后再画，**网格辅助线不会从卡片里透出来**。
+- 课程详情里有「共 x 周 · 已上 y 周 · 剩 z 周」进度。
 - 翻周：标题 `‹ 第N周 ▾ ›` 单步 + 课表区 `HorizontalPager` 左右滑动翻周（一页一周）。
+  看别的周时状态行右端出现小胶囊「回到本周」；状态行高度写死 30dp，切周时顶部不跳高度。
   改同步逻辑时注意：`pagerState.currentPage` 在拖动中就会变，用它驱动 `LaunchedEffect` 会打断手势，
   要用 `settledPage` 且拖动中不要主动 `animateScrollToPage`。
 - 桌面小部件「今日课程」已实现并实测（RemoteViews 里**不能用 `<View>`**，色条得用 `TextView`）。

@@ -44,6 +44,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -66,6 +67,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -224,8 +226,8 @@ fun TimetableScreen(
                 date = today.format(DateFormatter),
                 week = week,
                 totalWeeks = totalWeeks,
-                // 只在当前周显示今天星期几；看别的周时不再挂「点此回到本周」——箭头/滑动/周次面板都能回去
-                hint = if (isCurrentWeek) dayName(today.dayOfWeek.value) else "",
+                isCurrentWeek = isCurrentWeek,
+                today = dayName(today.dayOfWeek.value),
                 subtitle = subtitleOf(timetable),
                 progress = if (timetable.semesterStartDate.isBlank()) {
                     "未设置开学日期 · 点此说明现在是第几周"
@@ -235,6 +237,7 @@ fun TimetableScreen(
                 textOverride = argbOrNull(appearance.uiTextColor),
                 onWeekClick = { showWeekPicker = true },
                 onWeekStep = { delta -> goToWeek(week + delta) },
+                onBackToCurrentWeek = { followCurrent = true },
                 onProgressClick = { showWeekPicker = true },
                 onAddCourse = { onAddCourse(null) },
                 onImport = onOpenImport,
@@ -310,6 +313,9 @@ fun TimetableScreen(
             onExport = { showMore = false; showExport = true },
             onAbout = { showMore = false; onAbout() },
             onSetCurrentWeek = { target -> scope.launch { repository.setCurrentWeek(target) } },
+            onToggleOtherWeeks = { show ->
+                scope.launch { repository.updateAppearance(appearance.copy(showOtherWeeks = show)) }
+            },
         )
     }
 
@@ -374,12 +380,14 @@ private fun Header(
     date: String,
     week: Int,
     totalWeeks: Int,
-    hint: String,
+    isCurrentWeek: Boolean,
+    today: String,
     subtitle: String,
     progress: String,
     textOverride: Color?,
     onWeekClick: () -> Unit,
     onWeekStep: (Int) -> Unit,
+    onBackToCurrentWeek: () -> Unit,
     onProgressClick: () -> Unit,
     onAddCourse: () -> Unit,
     onImport: () -> Unit,
@@ -390,7 +398,7 @@ private fun Header(
     val muted = textOverride?.copy(alpha = 0.7f) ?: MaterialTheme.colorScheme.onSurfaceVariant
     val accent = textOverride ?: MaterialTheme.colorScheme.primary
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -406,25 +414,54 @@ private fun Header(
                     ChevronDownIcon(tint = tint, size = 16.dp)
                 }
                 WeekStepButton(enabled = week < totalWeeks, right = true, tint = tint) { onWeekStep(1) }
-                if (hint.isNotBlank()) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(text = hint, fontSize = 12.sp, color = muted)
+                // 只在当前周补一个「今天周几」；看别的周时这块留空，高度由下面的状态行保证不变
+                if (isCurrentWeek) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(today, fontSize = 12.sp, color = muted, maxLines = 1, softWrap = false)
                 }
             }
             if (subtitle.isNotBlank()) Text(subtitle, fontSize = 11.sp, color = muted)
-            if (progress.isNotBlank()) {
-                Text(
-                    progress,
-                    fontSize = 11.sp,
-                    color = if (progress.startsWith("未设置")) accent else muted.copy(alpha = 0.85f),
-                    modifier = Modifier.combinedClickable(onClick = onProgressClick),
-                )
-            }
         }
         HeaderButton(onAddCourse) { AddCircleIcon(tint = tint) }
         HeaderButton(onImport) { ImportIcon(tint = tint) }
         HeaderButton(onExport) { ExportIcon(tint = tint) }
         HeaderButton(onMore) { MoreCircleIcon(tint = tint) }
+    }
+    // 固定高度的一行：状态 + 「回到本周」。高度写死，切换周次时顶部不会跳。
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(30.dp)
+            .padding(start = 16.dp, end = 12.dp)
+            .padding(bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (progress.isNotBlank()) {
+            Text(
+                progress,
+                fontSize = 11.sp,
+                color = if (progress.startsWith("未设置")) accent else muted.copy(alpha = 0.85f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).combinedClickable(onClick = onProgressClick),
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+        if (!isCurrentWeek) {
+            Text(
+                "回到本周",
+                fontSize = 11.sp,
+                color = accent,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(accent.copy(alpha = 0.12f))
+                    .combinedClickable(onClick = onBackToCurrentWeek)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
     }
 }
 
@@ -789,7 +826,8 @@ private fun CourseCell(
         CellStyle.OUTLINE -> 0.05f
         else -> appearance.opacity / 100f * 0.26f
     }
-    val background = base.copy(alpha = fill * dim)
+    // 复合到不透明的表面色上：卡片盖住的网格辅助线不再透出来，格子里的字更清楚
+    val background = base.copy(alpha = fill * dim).compositeOver(MaterialTheme.colorScheme.surface)
     val titleColor = when {
         overrideText != null -> overrideText
         appearance.cellStyle == CellStyle.FILLED -> Color.White
@@ -844,15 +882,19 @@ private fun CourseCell(
             if (appearance.showLocation && group.location.isNotBlank()) {
                 Text("@${group.location}", fontSize = metaSize, color = metaColor, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            // 非本周只靠「整格变淡」表达（官方也是这么做的）；单双周是课程本身的属性，才值得标出来
-            val parity = parityLabel(group.weeks, totalWeeks)
-            if (parity != null && span >= 2) {
+            // 非本周 / 单双周：纯文字、不带底色（整格变淡已经表达了非本周，这里只做文字说明）
+            val marks = buildList {
+                if (!thisWeek) add("非本周")
+                parityLabel(group.weeks, totalWeeks)?.let { add(it) }
+            }
+            if (marks.isNotEmpty() && span >= 2) {
                 Spacer(Modifier.weight(1f))
                 Text(
-                    parity,
+                    marks.joinToString(" · "),
                     fontSize = 9.sp,
                     color = metaColor.copy(alpha = 0.85f),
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -965,6 +1007,7 @@ private fun MoreSheet(
     onExport: () -> Unit,
     onAbout: () -> Unit,
     onSetCurrentWeek: (Int) -> Unit,
+    onToggleOtherWeeks: (Boolean) -> Unit,
 ) {
     val currentWeek = currentWeekOf(timetable)
     var slider by remember { mutableStateOf(currentWeek.toFloat()) }
@@ -982,6 +1025,21 @@ private fun MoreSheet(
                 )
                 Text("第 ${slider.toInt()} 周", fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("隐藏非本周课程", fontSize = 14.sp)
+                    Text(
+                        "只显示本周要上的课",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = !timetable.appearance.showOtherWeeks,
+                    onCheckedChange = { onToggleOtherWeeks(!it) },
+                )
+            }
+            Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = { onSetCurrentWeek(slider.toInt().coerceIn(1, maxOf(1, timetable.totalWeeks))) },
