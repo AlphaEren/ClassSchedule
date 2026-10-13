@@ -16,3 +16,7 @@
 local.properties
 /snapshots
 /PROGRESS.md
+
+# 发布密钥（本地）
+*.jks
+*.keystore

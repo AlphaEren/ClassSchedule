@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
 }
+
+// 发布签名读 local.properties（不入库）；没有密钥时 release 就是未签名包，不影响 assembleDebug
+val signingProps = Properties().apply {
+  val file = rootProject.file("local.properties")
+  if (file.exists()) file.inputStream().use { load(it) }
+}
+val ksFile: String? = signingProps.getProperty("ksFile")
 
 android {
     namespace = "com.lorat.classschedule"
@@ -12,12 +21,24 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1"
+    }
+
+    signingConfigs {
+        if (ksFile != null) {
+            create("release") {
+                storeFile = rootProject.file(ksFile)
+                storePassword = signingProps.getProperty("ksPass")
+                keyAlias = signingProps.getProperty("ksAlias")
+                keyPassword = signingProps.getProperty("ksPass")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (ksFile != null) signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
