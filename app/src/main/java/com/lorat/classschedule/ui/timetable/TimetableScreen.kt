@@ -261,7 +261,8 @@ fun TimetableScreen(
                 textOverride = argbOrNull(appearance.uiTextColor),
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-            if (timetable.school == null && timetable.courses.isEmpty()) {
+            // 只要还没有课程，就按「未导入」的样子显示（不再显示空网格 + 提示文字）
+            if (timetable.courses.isEmpty()) {
                 Onboarding(
                     onAddSchool = onAddSchool,
                     onAddCourse = { onAddCourse(null) },
