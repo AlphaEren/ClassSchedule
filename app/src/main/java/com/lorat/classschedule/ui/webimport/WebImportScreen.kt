@@ -1,6 +1,12 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.lorat.classschedule.ui.webimport
 
+import android.content.Intent
+import android.net.Uri
 import android.webkit.WebView
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,14 +34,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -59,6 +68,7 @@ fun WebImportScreen(
     onFinished: () -> Unit,
 ) {
     val timetable by repository.timetable.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val school = timetable.school
     val preset = school?.parserPreset ?: TimetableExtractor.PRESET_AUTO
     val scope = rememberCoroutineScope()
@@ -75,6 +85,11 @@ fun WebImportScreen(
     var revealPage by remember { mutableStateOf(!auto) }
     var scanning by remember { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<TimetableExtractor.ScrapeResult?>(null) }
+    // 页面加载层面的日志（JS console / HTTP 错误 / 最终 URL）：登录页白屏时靠它定位
+    val loadLogs = remember { mutableStateListOf<String>() }
+    var pageUrl by remember { mutableStateOf("") }
+    var showLoadLog by remember { mutableStateOf(false) }
+    var pageHint by remember { mutableStateOf("") }
 
     fun scrape(web: WebView, autoMode: Boolean, attempt: Int) {
         scanning = true
@@ -176,6 +191,16 @@ fun WebImportScreen(
                     IconButton(onClick = onBack) { Text("←", fontSize = 20.sp) }
                 },
                 actions = {
+                    if (pageUrl.isNotBlank()) {
+                        TextButton(onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(pageUrl))
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
+                        }) { Text("浏览器") }
+                    }
                     if (lastResult != null) {
                         TextButton(onClick = { showDiagnostics = true }) { Text("详情") }
                     }
@@ -191,6 +216,40 @@ fun WebImportScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 3,
                     )
+                    if (pageHint.isNotBlank()) {
+                        Text(
+                            pageHint,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 3,
+                        )
+                    }
+                    if (pageUrl.isNotBlank()) {
+                        Text(
+                            pageUrl,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (loadLogs.isNotEmpty()) {
+                        Text(
+                            if (showLoadLog) "收起加载诊断" else "加载诊断（${loadLogs.size}）",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.combinedClickable { showLoadLog = !showLoadLog },
+                        )
+                        if (showLoadLog) {
+                            Text(
+                                loadLogs.takeLast(12).joinToString("\n"),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 14,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedButton(
@@ -226,9 +285,28 @@ fun WebImportScreen(
                         WebView(context).apply {
                             WebViewCompat.configure(
                                 web = this,
-                                onPageFinished = { pageLoaded.value += 1 },
+                                onPageFinished = { url ->
+                                    pageUrl = url
+                                    pageLoaded.value += 1
+                                },
                                 onProgress = { progress = it },
                                 onError = { status = "页面加载失败：$it（可先用系统浏览器确认网址是否正确）" },
+                                onPageInfo = { info ->
+                                    if (loadLogs.size > 40) loadLogs.removeAt(0)
+                                    loadLogs.add(info)
+                                    if (info.contains("\"input\":\"") && !info.contains("\"input\":\"none\"")) {
+                                        pageHint = "已检测到登录表单：在页面里登录后再点「识别课表」。" +
+                                            "若页面空白/点不动，点右上角「浏览器」改用系统浏览器打开。"
+                                    }
+                                },
+                                onConsole = { line ->
+                                    if (loadLogs.size > 40) loadLogs.removeAt(0)
+                                    loadLogs.add(line)
+                                },
+                                onHttpError = { url, code ->
+                                    if (loadLogs.size > 40) loadLogs.removeAt(0)
+                                    loadLogs.add("HTTP $code  $url")
+                                },
                             )
                             webViewState.value = this
                             loadUrl(school.refreshUrl.ifBlank { school.scheduleUrl })
