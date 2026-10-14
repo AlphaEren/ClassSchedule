@@ -634,7 +634,7 @@ function arrToCourses(arr){
 /* ---------- 教务处 SaaS（EXESAC）原始接口：一次拿到全学期每次课 ----------
    {"ClassTimePatterns":[{"StartTimeSlot":96,"EndTimeSlot":105},...],
     "CurrentWeekIndex":6,
-    "Data":[{"LUName":"机械原理","FullName":"老师A","Building":"B楼","Classroom":"F教3",
+    "Data":[{"LUName":"机械原理","FullName":"张老师","Building":"B楼","Classroom":"F教3",
              "WeekStart":1,"WeekEnd":9,"WeekInterval":0,"TimeSlotStart":168,"TimeSlotEnd":188,
              "StartDay":"2026-09-07","OnMonday":false,"OnTuesday":true,...}]}
    节次用「5 分钟为单位」的节号表示，ClassTimePatterns 把节号换算成上下课时间。 */

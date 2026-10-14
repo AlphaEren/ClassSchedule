@@ -65,7 +65,7 @@ internal fun sectionRangeOfText(raw: String): IntRange? {
 
 /**
  * 整行就是节次标签吗？`①` / `第3节` / `3` / `3-4` / `上午1` 是；
- * `@教1-201` / `老师W【4-19周】` 这种不是（否则会被当成节次吃掉）。
+ * `@教1-201` / `王老师【4-19周】` 这种不是（否则会被当成节次吃掉）。
  */
 internal fun isSectionLabel(text: String): Boolean {
     val stripped = stripSectionGroupWords(text).replace(Regex("\\s"), "")
@@ -79,20 +79,20 @@ internal fun isSectionLabel(text: String): Boolean {
 internal fun isNoiseText(text: String): Boolean =
     TimeLike.matches(text) || text.none { it.isLetter() } || isSectionLabel(text)
 
-/** 地点：`@教1-201` / `A101` / `A108` / `A109` / `东A101` / `大教室8` / `楼101`。 */
+/** 地点：`@教1-201` / `A101` / `B202` / `C301` / `东A101` / `大教室8` / `楼101`。 */
 internal fun looksLikeRoom(s: String): Boolean {
     val t = s.trim()
     if (t.startsWith("@")) return true
     if (Regex("^[\\d\\-—~]{3,}$").matches(t)) return true
     if (listOf("楼", "室", "馆", "场", "区", "机房", "教室", "操场", "大教室").any { t.contains(it) }) return true
-    // 两三个字的前缀 + 2~4 位数字 + 可能的后缀字母：A101 / A108 / 东A101 / E203
+    // 两三个字的前缀 + 2~4 位数字 + 可能的后缀字母：A101 / B202 / 东A101 / E203
     return Regex("^[\\p{IsHan}A-Za-z]{0,3}\\d{2,4}[A-Za-z]?$").matches(t)
 }
 
 internal fun looksLikeTeacher(s: String): Boolean =
     s.length in 2..4 && s.none { it.isDigit() } && !looksLikeRoom(s)
 
-/** 把「老师W【4-19周】」这类混排拆成 (剩下的文字, 周次)。 */
+/** 把「王老师【4-19周】」这类混排拆成 (剩下的文字, 周次)。 */
 internal fun splitWeeks(raw: String, totalWeeks: Int): Pair<String, List<Int>> {
     val match = WeekMarker.find(raw) ?: return raw to emptyList()
     val weeks = parseWeeks(match.value, totalWeeks)

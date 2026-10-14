@@ -1,4 +1,4 @@
-﻿# 生成 8 个识别测试页面（课表布局各不相同的样例）
+# 生成 8 个识别测试页面（课表布局各不相同的样例）
 $dir = $PSScriptRoot + "\cases"
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $days='一二三四五六日'
