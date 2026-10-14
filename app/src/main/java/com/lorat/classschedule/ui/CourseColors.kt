@@ -24,22 +24,22 @@ fun courseColor(index: Int): Color {
 }
 
 /**
- * 「自动配色」用的 12 色：比可选调色板更饱和，
- * 因为格子底色很淡（约 20%），只有饱和色才能让「文字颜色」一眼分得开。
+ * 自动配色用的 12 色：前 8 个就是 v0.2 的原始调色板（观感不变），
+ * 后 4 个是同样柔和的补色，只为「一周内不同课程不撞色」留出余量。
  */
 val AutoCourseColors = listOf(
-    Color(0xFFE53935), // 红
-    Color(0xFF1E88E5), // 蓝
-    Color(0xFF43A047), // 绿
-    Color(0xFFFB8C00), // 橙
-    Color(0xFF8E24AA), // 紫
-    Color(0xFF00897B), // 青绿
-    Color(0xFFD81B60), // 玫红
-    Color(0xFF6D4C41), // 棕
-    Color(0xFFF9A825), // 琥珀
-    Color(0xFF00ACC1), // 青
-    Color(0xFF3949AB), // 靛
-    Color(0xFF546E7A), // 灰蓝
+    Color(0xFFEF6C6C), // 红
+    Color(0xFFF2A03D), // 橙
+    Color(0xFF8FA31E), // 橄榄
+    Color(0xFF57BB8A), // 绿
+    Color(0xFF4FB3C7), // 青
+    Color(0xFF5B8DEF), // 蓝
+    Color(0xFF9B6BDF), // 紫
+    Color(0xFFE06CA8), // 粉
+    Color(0xFF35A79C), // 青绿
+    Color(0xFFA98B6B), // 棕
+    Color(0xFF7F9BB5), // 灰蓝
+    Color(0xFF6FA98F), // 灰绿
 )
 
 /** 「随机彩色」：不存具体颜色，交给按周自动配色（默认）。 */
