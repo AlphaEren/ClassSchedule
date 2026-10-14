@@ -45,6 +45,7 @@ import com.lorat.classschedule.data.courseGroups
 import com.lorat.classschedule.data.dayName
 import com.lorat.classschedule.data.sectionsText
 import com.lorat.classschedule.data.weeksText
+import com.lorat.classschedule.ui.autoColorMap
 import com.lorat.classschedule.ui.courseColorFor
 import kotlinx.coroutines.launch
 
@@ -58,6 +59,7 @@ fun CourseListScreen(
 ) {
     val timetable by repository.timetable.collectAsStateWithLifecycle()
     val groups = remember(timetable.courses) { timetable.courseGroups() }
+    val autoColors = remember(timetable.courses) { autoColorMap(timetable.courses.map { it.name }) }
     val scope = rememberCoroutineScope()
     var pendingDelete by remember { mutableStateOf<CourseGroup?>(null) }
 
@@ -93,7 +95,10 @@ fun CourseListScreen(
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(courseColorFor(group.colorIndex, group.name)))
+                        Box(
+                            Modifier.size(10.dp).clip(CircleShape)
+                                .background(courseColorFor(group.colorIndex, group.name, autoColors)),
+                        )
                         Spacer(Modifier.size(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(group.name, fontWeight = FontWeight.SemiBold)

@@ -242,7 +242,7 @@ fun csvToCourses(rows: List<CsvCourse>, sectionTimes: List<SectionTime>): List<C
             startSection = row.startSection.coerceIn(1, maxSection),
             endSection = row.endSection.coerceIn(1, maxSection),
             weeks = row.weeks,
-            colorIndex = names.indexOf(row.name),
+            colorIndex = -1,
             groupId = "csv-group-${names.indexOf(row.name)}",
         )
     }

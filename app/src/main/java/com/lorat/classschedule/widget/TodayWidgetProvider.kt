@@ -16,6 +16,7 @@ import com.lorat.classschedule.data.model.Course
 import com.lorat.classschedule.data.model.Timetable
 import com.lorat.classschedule.data.parityLabel
 import com.lorat.classschedule.data.timeText
+import com.lorat.classschedule.ui.autoColorMap
 import com.lorat.classschedule.ui.courseColorFor
 import kotlinx.serialization.json.Json
 import androidx.compose.ui.graphics.toArgb
@@ -114,6 +115,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_empty, View.GONE)
             }
 
+            val autoColors = autoColorMap(timetable.courses.map { it.name })
             for (index in 0 until MAX_ROWS) {
                 val course = mine.getOrNull(index)
                 if (course == null) {
@@ -124,7 +126,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(NameIds[index], course.name)
                 views.setTextViewText(MetaIds[index], WidgetData.metaOf(course, timetable))
                 views.setTextViewText(TimeIds[index], timeText(course, timetable.sectionTimes))
-                views.setInt(BarIds[index], "setBackgroundColor", courseColorFor(course.colorIndex, course.name).toArgb())
+                views.setInt(BarIds[index], "setBackgroundColor", courseColorFor(course.colorIndex, course.name, autoColors).toArgb())
             }
 
             val intent = Intent(context, MainActivity::class.java)

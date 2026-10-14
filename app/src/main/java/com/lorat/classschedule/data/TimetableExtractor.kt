@@ -209,7 +209,7 @@ object TimetableExtractor {
                 .map { c ->
                     c.copy(
                         weeks = c.weeks.filter { it in 1..limit },
-                        colorIndex = abs(c.name.hashCode()) % 8,
+                        colorIndex = -1,
                         // 同一门课的多个时间段归到一个分组，课表里才会当做一门课（同色、可一起编辑）
                         groupId = c.groupId.ifBlank { "n-" + abs(c.name.hashCode()) },
                     )
@@ -379,7 +379,7 @@ object TimetableExtractor {
             startSection = start,
             endSection = end,
             weeks = weeks,
-            colorIndex = abs(name.hashCode()) % 8,
+            colorIndex = -1,
         )
     }
 
