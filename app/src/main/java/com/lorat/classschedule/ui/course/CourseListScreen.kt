@@ -45,7 +45,7 @@ import com.lorat.classschedule.data.courseGroups
 import com.lorat.classschedule.data.dayName
 import com.lorat.classschedule.data.sectionsText
 import com.lorat.classschedule.data.weeksText
-import com.lorat.classschedule.ui.courseColor
+import com.lorat.classschedule.ui.courseColorFor
 import kotlinx.coroutines.launch
 
 /** 已添课程: every course in the timetable, with quick access to edit/delete. */
@@ -93,7 +93,7 @@ fun CourseListScreen(
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(courseColor(group.colorIndex)))
+                        Box(Modifier.size(10.dp).clip(CircleShape).background(courseColorFor(group.colorIndex, group.name)))
                         Spacer(Modifier.size(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(group.name, fontWeight = FontWeight.SemiBold)

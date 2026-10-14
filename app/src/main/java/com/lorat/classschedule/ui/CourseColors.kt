@@ -23,6 +23,12 @@ fun courseColor(index: Int): Color {
     return CourseColors[((index % size) + size) % size]
 }
 
+/** 「随机彩色」：按课程名取色，同一门课每次看到的颜色都一样。 */
+const val RandomCourseColor = -1
+
+fun courseColorFor(colorIndex: Int, key: String): Color =
+    if (colorIndex < 0) courseColor(key.hashCode()) else courseColor(colorIndex)
+
 /** 0L means "no explicit colour", which lets the caller fall back to the course colour. */
 fun argbOrNull(value: Long): Color? =
     if (value == 0L) null else Color(value.toInt())

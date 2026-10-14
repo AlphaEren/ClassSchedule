@@ -105,4 +105,7 @@ dependencies {
 
   // Serialization: local persistence + nav keys
   implementation(libs.kotlinx.serialization.json)
+
+  // 图片识别课表：离线中文 OCR
+  implementation(libs.mlkit.text.recognition.chinese)
 }

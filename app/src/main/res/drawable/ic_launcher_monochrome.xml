@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主题图标（Android 13+）用的单色版本：只留 3×3 格子，由系统着色。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:pathData="M31,29h12v13h-12z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M48,29h12v13h-12z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M65,29h12v13h-12z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M31,47h12v13h-12z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M48,47h12v13h-12z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M65,47h12v13h-12z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M31,65h12v13h-12z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M48,65h12v13h-12z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M65,65h12v13h-12z" />
+</vector>

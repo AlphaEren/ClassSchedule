@@ -17,7 +17,7 @@
         android:layout_height="wrap_content"
         android:maxLines="1"
         android:ellipsize="end"
-        android:textColor="#6B7280"
+        android:textColor="@color/widget_meta"
         android:textSize="11sp"
         android:text="@string/widget_today_label" />
 
@@ -27,7 +27,7 @@
         android:layout_height="wrap_content"
         android:paddingTop="14dp"
         android:paddingBottom="6dp"
-        android:textColor="#6B7280"
+        android:textColor="@color/widget_meta"
         android:textSize="13sp"
         android:visibility="gone"
         android:text="今天没有课，好好休息" />

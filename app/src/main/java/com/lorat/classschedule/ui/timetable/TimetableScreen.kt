@@ -7,6 +7,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -45,7 +47,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -70,6 +71,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -100,7 +103,7 @@ import com.lorat.classschedule.data.weeksText
 import com.lorat.classschedule.data.CourseGroup
 import com.lorat.classschedule.ui.WebViewCompat
 import com.lorat.classschedule.ui.argbOrNull
-import com.lorat.classschedule.ui.courseColor
+import com.lorat.classschedule.ui.courseColorFor
 import com.lorat.classschedule.ui.icons.AddCircleIcon
 import com.lorat.classschedule.ui.icons.ChevronDownIcon
 import com.lorat.classschedule.ui.icons.ChevronLeftIcon
@@ -122,6 +125,8 @@ fun TimetableScreen(
     repository: ScheduleRepository,
     onAddSchool: () -> Unit,
     onAddCourse: (String?) -> Unit,
+    /** 长按课表空格子：带着星期与节次直接新建课程。 */
+    onAddCourseAt: (Int, Int) -> Unit,
     onOpenScheduleSettings: () -> Unit,
     onOpenGlobalSettings: () -> Unit,
     onOpenCourseList: () -> Unit,
@@ -273,6 +278,7 @@ fun TimetableScreen(
                     },
                     onCourseClick = { detailCourse = it },
                     onCourseLongClick = { actionCourse = it },
+                    onEmptyLongPress = { day, section -> onAddCourseAt(day, section) },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -314,9 +320,6 @@ fun TimetableScreen(
             onExport = { showMore = false; showExport = true },
             onAbout = { showMore = false; onAbout() },
             onSetCurrentWeek = { target -> scope.launch { repository.setCurrentWeek(target) } },
-            onToggleOtherWeeks = { show ->
-                scope.launch { repository.updateAppearance(appearance.copy(showOtherWeeks = show)) }
-            },
         )
     }
 
@@ -450,18 +453,25 @@ private fun Header(
             Spacer(Modifier.weight(1f))
         }
         if (!isCurrentWeek) {
-            Text(
-                "回到本周",
-                fontSize = 11.sp,
-                color = accent,
-                maxLines = 1,
-                softWrap = false,
+            Box(
                 modifier = Modifier
+                    .height(24.dp)
                     .clip(RoundedCornerShape(50))
                     .background(accent.copy(alpha = 0.12f))
                     .combinedClickable(onClick = onBackToCurrentWeek)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-            )
+                    .padding(horizontal = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                // lineHeight 收到与字号一致，文字才居中不偏下
+                Text(
+                    "回到本周",
+                    fontSize = 11.sp,
+                    lineHeight = 11.sp,
+                    color = accent,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
         }
     }
 }
@@ -645,6 +655,7 @@ private fun TimetableGrid(
     onWeekChange: (Int) -> Unit,
     onCourseClick: (CourseGroup) -> Unit,
     onCourseLongClick: (CourseGroup) -> Unit,
+    onEmptyLongPress: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val appearance = timetable.appearance
@@ -657,26 +668,41 @@ private fun TimetableGrid(
     val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (appearance.gridLines) 0.12f else 0f)
     val primary = MaterialTheme.colorScheme.primary
 
-    // 左右滑动翻周：一页一周，表头/面板改周时也跟着滑过去。
-    // 注意不要在手指拖动过程中主动滚动，否则会把用户的手势打断（会表现为「滑了没反应」）。
+    // 左右滑动翻周：一页一周。这里关掉 Pager 自带的拖拽，改成自己识别横向滑动，
+    // 因为 Pager 的「拖动距离 + 惯性」会一次翻两页（表现为跳过中间那一周）。
     val pagerState = rememberPagerState(initialPage = (week - 1).coerceIn(0, totalWeeks - 1)) { totalWeeks }
     LaunchedEffect(week, totalWeeks) {
         val target = (week - 1).coerceIn(0, totalWeeks - 1)
-        if (!pagerState.isScrollInProgress && pagerState.settledPage != target) {
+        if (pagerState.currentPage != target || pagerState.currentPageOffsetFraction != 0f) {
             pagerState.animateScrollToPage(target)
         }
     }
-    LaunchedEffect(pagerState) {
-        // settledPage 只在滚动停下后才变，拖动中不会来回触发
-        snapshotFlow { pagerState.settledPage }.collect { page -> onWeekChange(page + 1) }
-    }
+    val swipeThreshold = with(LocalDensity.current) { 48.dp.toPx() }
 
     Column(modifier.verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth()) {
             AxisColumn(timetable = timetable, sections = sections, rowHeight = rowHeight)
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.weight(1f).height(rowHeight * sections),
+                userScrollEnabled = false,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(rowHeight * sections)
+                    .pointerInput(week, totalWeeks, swipeThreshold) {
+                        var total = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { total = 0f },
+                            onHorizontalDrag = { _, delta -> total += delta },
+                            onDragEnd = {
+                                val step = when {
+                                    total <= -swipeThreshold -> 1
+                                    total >= swipeThreshold -> -1
+                                    else -> 0
+                                }
+                                if (step != 0) onWeekChange((week + step).coerceIn(1, totalWeeks))
+                            },
+                        )
+                    },
                 beyondViewportPageCount = 1,
             ) { page ->
                 WeekPage(
@@ -691,6 +717,7 @@ private fun TimetableGrid(
                     primary = primary,
                     onCourseClick = onCourseClick,
                     onCourseLongClick = onCourseLongClick,
+                    onEmptyLongPress = onEmptyLongPress,
                 )
             }
         }
@@ -712,12 +739,27 @@ private fun WeekPage(
     primary: Color,
     onCourseClick: (CourseGroup) -> Unit,
     onCourseLongClick: (CourseGroup) -> Unit,
+    onEmptyLongPress: (Int, Int) -> Unit,
 ) {
     val appearance = timetable.appearance
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val colWidth = maxWidth / columns.size
+        val colWidthPx = with(LocalDensity.current) { colWidth.toPx() }
+        val rowHeightPx = with(LocalDensity.current) { rowHeight.toPx() }
         Box(
-            Modifier.fillMaxSize().drawBehind {
+            Modifier
+                .fillMaxSize()
+                // 长按空格子 = 在这一格新建课程；课程卡片自己会先吃掉事件，所以不会互相打架
+                .pointerInput(week, columns, colWidthPx, rowHeightPx) {
+                    detectTapGestures(
+                        onLongPress = { offset ->
+                            val col = (offset.x / colWidthPx).toInt().coerceIn(0, columns.size - 1)
+                            val row = ((offset.y / rowHeightPx).toInt() + 1).coerceIn(1, sections)
+                            onEmptyLongPress(columns[col], row)
+                        },
+                    )
+                }
+                .drawBehind {
                 val rowPx = rowHeight.toPx()
                 val colPx = colWidth.toPx()
                 val lineWidthPx = 1.dp.toPx()
@@ -818,7 +860,7 @@ private fun CourseCell(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    val base = courseColor(group.colorIndex)
+    val base = courseColorFor(group.colorIndex, group.name)
     val overrideText = argbOrNull(appearance.textColor)
     val overrideBorder = argbOrNull(appearance.borderColor)
     // 非本周：卡片明显更淡，跟左边的本周课程拉开对比（文字留一点淡化但保证还能读）
@@ -1029,7 +1071,6 @@ private fun MoreSheet(
     onExport: () -> Unit,
     onAbout: () -> Unit,
     onSetCurrentWeek: (Int) -> Unit,
-    onToggleOtherWeeks: (Boolean) -> Unit,
 ) {
     val currentWeek = currentWeekOf(timetable)
     var slider by remember { mutableStateOf(currentWeek.toFloat()) }
@@ -1046,20 +1087,6 @@ private fun MoreSheet(
                     modifier = Modifier.weight(1f),
                 )
                 Text("第 ${slider.toInt()} 周", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("隐藏非本周课程", fontSize = 14.sp)
-                    Text(
-                        "只显示本周要上的课",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = !timetable.appearance.showOtherWeeks,
-                    onCheckedChange = { onToggleOtherWeeks(!it) },
-                )
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {

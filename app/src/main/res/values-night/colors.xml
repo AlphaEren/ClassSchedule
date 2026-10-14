@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色模式：与 App 内深色主题一致的底色 -->
+    <color name="splash_background">#FF101114</color>
+
+    <color name="widget_bg">#FF1B1D21</color>
+    <color name="widget_stroke">#33FFFFFF</color>
+    <color name="widget_text">#FFE8EAED</color>
+    <color name="widget_meta">#FF9AA0A6</color>
+</resources>

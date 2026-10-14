@@ -66,6 +66,8 @@ import com.lorat.classschedule.data.nextColorIndex
 import com.lorat.classschedule.data.sectionsText
 import com.lorat.classschedule.data.weeksText
 import com.lorat.classschedule.ui.CourseColors
+import com.lorat.classschedule.ui.RandomCourseColor
+import androidx.compose.ui.graphics.Brush
 import kotlinx.coroutines.launch
 
 /** One 时间段 row in the editor. */
@@ -83,6 +85,8 @@ fun CourseEditScreen(
     repository: ScheduleRepository,
     groupKey: String?,
     onBack: () -> Unit,
+    initialDay: Int = 0,
+    initialSection: Int = 0,
 ) {
     val timetable by repository.timetable.collectAsStateWithLifecycle()
     val totalWeeks = maxOf(1, timetable.totalWeeks)
@@ -94,9 +98,8 @@ fun CourseEditScreen(
     var name by remember { mutableStateOf(existing?.name.orEmpty()) }
     var credit by remember { mutableStateOf(existing?.credit.orEmpty()) }
     var note by remember { mutableStateOf(existing?.note.orEmpty()) }
-    var colorIndex by remember {
-        mutableStateOf(existing?.colorIndex ?: timetable.nextColorIndex(CourseColors.size))
-    }
+    // 新课程默认「随机彩色」，也可以自己挑一个固定颜色
+    var colorIndex by remember { mutableStateOf(existing?.colorIndex ?: RandomCourseColor) }
     val slots = remember {
         (
             existing?.slots?.map {
@@ -109,7 +112,14 @@ fun CourseEditScreen(
                     location = it.location,
                 )
             } ?: listOf(
-                SlotDraft(1, 1, 2, (1..totalWeeks).toSet(), "", ""),
+                SlotDraft(
+                    day = initialDay.takeIf { it in 1..7 } ?: 1,
+                    start = initialSection.takeIf { it >= 1 }?.coerceAtMost(sectionCount) ?: 1,
+                    end = (initialSection.takeIf { it >= 1 }?.plus(1) ?: 2).coerceAtMost(sectionCount),
+                    weeks = (1..totalWeeks).toSet(),
+                    teacher = "",
+                    location = "",
+                ),
             )
             ).toMutableStateList()
     }
@@ -197,6 +207,28 @@ fun CourseEditScreen(
                     }
                     Text("颜色", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // 「随机彩色」排第一并作为默认：按课程名取色，同一门课颜色固定
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.sweepGradient(
+                                        listOf(
+                                            CourseColors[0], CourseColors[1], CourseColors[3],
+                                            CourseColors[5], CourseColors[6], CourseColors[7], CourseColors[0],
+                                        ),
+                                    ),
+                                )
+                                .then(
+                                    if (colorIndex == RandomCourseColor) {
+                                        Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                    } else {
+                                        Modifier
+                                    },
+                                )
+                                .combinedClickable { colorIndex = RandomCourseColor },
+                        )
                         CourseColors.forEachIndexed { index, color ->
                             Box(
                                 modifier = Modifier
@@ -214,6 +246,11 @@ fun CourseEditScreen(
                             )
                         }
                     }
+                    Text(
+                        if (colorIndex == RandomCourseColor) "随机彩色（默认，按课程名固定）" else "已选固定颜色",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedTextField(
                             value = credit,

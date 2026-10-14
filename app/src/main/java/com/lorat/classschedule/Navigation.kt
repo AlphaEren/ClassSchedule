@@ -7,6 +7,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.lorat.classschedule.data.ScheduleRepository
 import com.lorat.classschedule.ui.course.CourseEditScreen
 import com.lorat.classschedule.ui.course.CourseListScreen
+import com.lorat.classschedule.ui.imports.ImageImportScreen
 import com.lorat.classschedule.ui.imports.ImportScreen
 import com.lorat.classschedule.ui.school.AddSchoolScreen
 import com.lorat.classschedule.ui.settings.AboutScreen
@@ -30,6 +31,7 @@ fun MainNavigation(repository: ScheduleRepository) {
             repository = repository,
             onAddSchool = { backStack.add(AddSchoolRoute) },
             onAddCourse = { groupKey -> backStack.add(CourseEditRoute(groupKey)) },
+            onAddCourseAt = { day, section -> backStack.add(CourseEditRoute(null, day, section)) },
             onOpenScheduleSettings = { backStack.add(ScheduleSettingsRoute) },
             onOpenGlobalSettings = { backStack.add(GlobalSettingsRoute) },
             onOpenCourseList = { backStack.add(CourseListRoute) },
@@ -73,6 +75,8 @@ fun MainNavigation(repository: ScheduleRepository) {
           CourseEditScreen(
             repository = repository,
             groupKey = route.groupKey,
+            initialDay = route.day,
+            initialSection = route.section,
             onBack = { backStack.removeLastOrNull() },
           )
         }
@@ -81,6 +85,13 @@ fun MainNavigation(repository: ScheduleRepository) {
             repository = repository,
             onBack = { backStack.removeLastOrNull() },
             onOpenSchoolImport = { backStack.add(AddSchoolRoute) },
+            onOpenImageImport = { backStack.add(ImageImportRoute) },
+          )
+        }
+        entry<ImageImportRoute> {
+          ImageImportScreen(
+            repository = repository,
+            onBack = { backStack.removeLastOrNull() },
           )
         }
         entry<AddSchoolRoute> {

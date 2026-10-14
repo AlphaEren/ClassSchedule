@@ -15,10 +15,18 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object CourseListRoute : NavKey
 
-/** [groupKey] is the course being edited, or null when adding a new one. */
-@Serializable data class CourseEditRoute(val groupKey: String?) : NavKey
+/** [groupKey] is the course being edited, or null when adding a new one.
+ *  [day] / [section] 来自课表上长按的空格子，用来预填时间段。 */
+@Serializable data class CourseEditRoute(
+    val groupKey: String?,
+    val day: Int = 0,
+    val section: Int = 0,
+) : NavKey
 
 @Serializable data object ImportRoute : NavKey
+
+/** 从图片识别课表。 */
+@Serializable data object ImageImportRoute : NavKey
 
 @Serializable data object AboutRoute : NavKey
 

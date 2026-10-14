@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 深色模式：用深色窗口底色，冷启动不再先闪白 -->
+    <style name="Theme.ClassSchedule" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+
+    <style name="Theme.ClassSchedule.Starting" parent="Theme.ClassSchedule" />
+</resources>

@@ -55,12 +55,13 @@ import com.lorat.classschedule.ui.settings.SettingsNavRow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** 导入课表: 教务系统 / CSV / 备份文件 / HTML 文件 / 粘贴文本. */
+/** 导入课表: 教务系统 / 图片识别 / CSV / 备份文件 / HTML 文件 / 粘贴文本. */
 @Composable
 fun ImportScreen(
     repository: ScheduleRepository,
     onBack: () -> Unit,
     onOpenSchoolImport: () -> Unit,
+    onOpenImageImport: () -> Unit,
 ) {
     val timetable by repository.timetable.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -141,6 +142,14 @@ fun ImportScreen(
                     title = "从学校教务导入",
                     subtitle = "内置浏览器登录后自动识别课表，支持 5 级识别管线",
                     onClick = onOpenSchoolImport,
+                )
+            }
+
+            SettingsCard("从图片识别") {
+                SettingsNavRow(
+                    title = "从图片识别课表",
+                    subtitle = "选一张课表截图，本机离线识别课程名 / 地点 / 节次",
+                    onClick = onOpenImageImport,
                 )
             }
 

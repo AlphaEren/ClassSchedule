@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动窗口底色：浅色与深色各一套，避免冷启动时先闪一下白屏 -->
+    <color name="splash_background">#FFFFFFFF</color>
+
+    <!-- 桌面小部件 -->
+    <color name="widget_bg">#FFFFFFFF</color>
+    <color name="widget_stroke">#1A000000</color>
+    <color name="widget_text">#FF1F2126</color>
+    <color name="widget_meta">#FF6B7280</color>
+</resources>

@@ -16,7 +16,7 @@ import com.lorat.classschedule.data.model.Course
 import com.lorat.classschedule.data.model.Timetable
 import com.lorat.classschedule.data.parityLabel
 import com.lorat.classschedule.data.timeText
-import com.lorat.classschedule.ui.courseColor
+import com.lorat.classschedule.ui.courseColorFor
 import kotlinx.serialization.json.Json
 import androidx.compose.ui.graphics.toArgb
 import java.io.File
@@ -124,7 +124,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(NameIds[index], course.name)
                 views.setTextViewText(MetaIds[index], WidgetData.metaOf(course, timetable))
                 views.setTextViewText(TimeIds[index], timeText(course, timetable.sectionTimes))
-                views.setInt(BarIds[index], "setBackgroundColor", courseColor(course.colorIndex).toArgb())
+                views.setInt(BarIds[index], "setBackgroundColor", courseColorFor(course.colorIndex, course.name).toArgb())
             }
 
             val intent = Intent(context, MainActivity::class.java)

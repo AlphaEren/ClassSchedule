@@ -25,7 +25,7 @@ $env:JAVA_HOME="C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
 cd C:\Users\Lorat\ClassSchedule
 
 .\gradlew.bat :app:assembleDebug --console=plain          # 构建
-.\gradlew.bat :app:testDebugUnitTest --console=plain     # 免模拟器回归：CSV/周次/进度/小部件，20 个用例
+.\gradlew.bat :app:testDebugUnitTest --console=plain     # 免模拟器回归：CSV/周次/进度/小部件/OCR 版面，23 个用例
 
 Start-Process "C:\Users\Lorat\Android\Sdk\emulator\emulator.exe" -ArgumentList '-avd','classschedule'   # 需要可视化时
 $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
@@ -71,17 +71,22 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"
   **教务自报的当前周与开学日期**（`applyImport` 会落库并锚定当前周）。回归用例：`tools/js-harness` 的
   `i_exesac`（内联真实响应，脱敏）。
 - 课表渲染规则：同格同名的多段周次合并成一格；本周的课优先，非本周的课只在不与本周重叠时绘制；
-  本周真正冲突才左右平分并标三角。非本周的课=整格降透明度+格子底部 `非本周` 纯文字标签，
-  `⋯` 面板里有「隐藏非本周课程」开关（对应外观设置 `showOtherWeeks`）。
+  本周真正冲突才左右平分并标三角。非本周的课=整格明显变淡 + 带边框的 `非本周` 小牌子；
+  「隐藏非本周课程」开关只在「课表设置 → 课表外观」（`showOtherWeeks`），`⋯` 面板里已移除。
   卡片底色与不透明表面色合成后再画，**网格辅助线不会从卡片里透出来**。
 - 课程详情里有「共 x 周 · 已上 y 周 · 剩 z 周」进度。
-- 翻周：标题 `‹ 第N周 ▾ ›` 单步 + 课表区 `HorizontalPager` 左右滑动翻周（一页一周）。
+- 翻周：标题 `‹ 第N周 ▾ ›` 单步 + 课表区左右滑动翻周（一页一周）。
   看别的周时状态行右端出现小胶囊「回到本周」；状态行高度写死 30dp，切周时顶部不跳高度。
-  改同步逻辑时注意：`pagerState.currentPage` 在拖动中就会变，用它驱动 `LaunchedEffect` 会打断手势，
-  要用 `settledPage` 且拖动中不要主动 `animateScrollToPage`。
+  **滑动是自己实现的**（`detectHorizontalDragGestures` + `userScrollEnabled = false`）：Pager 自带的
+  「拖动 + 惯性」会一次翻两页，表现为「滑到本周却跳到上一周」，踩过一次就别改回去。
+- 课表空白处**长按**可按该格的星期/节次直接新建课程；添加课程页颜色默认「随机彩色」（`colorIndex = -1`）。
+- 导入课表含「从图片识别」（ML Kit 离线中文 OCR，`data/OcrTimetable.kt` 做版面还原）——**实验功能**，
+  结果可能偏差，界面有提示；解析逻辑有 JVM 单测（`OcrTimetableTest`）。
+- 黑夜模式：窗口底色走 `values-night/themes.xml`（冷启动不闪白）；小部件颜色走 `@color/widget_*`
+  + `values-night/colors.xml`。关于页有项目地址与 MIT 协议（仓库根 `LICENSE`）。图标是自绘自适应图标。
 - 桌面小部件「今日课程」已实现并实测（RemoteViews 里**不能用 `<View>`**，色条得用 `TextView`）。
 - 识别管线（DOM 兜底仍在）：接口抓包(`net`) → 课表格子(`box`) → 指定容器(`selector`) → 表格网格(`grid`) → 位置聚类(`geometry`)。
-- 已实测：`assembleDebug` 通过；JVM 单测 20/20；js-harness 9/9；模拟器端到端（真实响应落库 → 第 6 周、第 14 周、小部件）。
+- 已实测：`assembleDebug` 通过；JVM 单测 23/23；js-harness 9/9；模拟器端到端（真实响应落库 → 第 6 周、第 14 周、小部件、图片识别）。
 - 排查真实教务页面的办法（会话还有效时）：取 `app_webview/Default/Cookies`，用宿主机直接调
   `TimeTableHandler.ashx` 拿 JSON 当基准。**Cookie 属敏感信息，用完删掉、不要入库。**
 - 本轮未做（详见 `PROGRESS.md` §0.8 / §0.9）：多课表切换、`.ics`/分享口令导出、其它系统的「大节」兜底、更多小部件样式。
