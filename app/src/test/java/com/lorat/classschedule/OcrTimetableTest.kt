@@ -66,4 +66,61 @@ class OcrTimetableTest {
         assertTrue(courses.isNotEmpty())
         assertEquals(1, courses.first().startSection)
     }
+
+    /** 有星期表头但完全没识别出节次刻度时，不能崩，节次退回默认值。 */
+    @Test
+    fun `table without section numbers does not crash`() {
+        val lines = listOf(
+            line("星期一", 200, 40), line("星期二", 330, 40), line("星期三", 460, 40), line("星期四", 590, 40),
+            line("程序设计基础", 200, 140), line("老师W【4-19周】", 200, 175), line("A101", 200, 210),
+        )
+        val courses = coursesFromOcr(lines, totalWeeks = 20, width = 1114)
+        assertTrue(courses.isNotEmpty())
+        assertEquals(1, courses.first().startSection)
+        assertEquals(1, courses.first().endSection)
+        assertEquals("A101", courses.first().location)
+    }
+
+    /** 学校教务导出的课表样式：`星期一`表头、`老师【4-19周】`混排、`A101`地点、一格两门课。 */
+    @Test
+    fun `parses a school style table with teacher-weeks lines and two courses in one cell`() {
+        val dayX = listOf(200, 330, 460, 590, 720, 850, 980)
+        val lines = mutableListOf<OcrLine>()
+        listOf("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日").forEachIndexed { i, d ->
+            lines += line(d, dayX[i], 40)
+        }
+        // 节次刻度：1..10，第 1 行在 y=110，每行 60px
+        (1..10).forEach { s -> lines += line(s.toString(), 60, 80 + s * 60) }
+
+        // 周一 1-2 节：程序设计基础 / 老师W【4-19周】 / A101
+        lines += line("程序设计基础", dayX[0], 140)
+        lines += line("老师W【4-19周】", dayX[0], 175)
+        lines += line("A101", dayX[0], 210)
+        // 周五 5-6 节：一格两门课，中间一条虚线
+        lines += line("大学美育", dayX[4], 440)
+        lines += line("老师Y【4-11周】", dayX[4], 470)
+        lines += line("A106", dayX[4], 500)
+        lines += line("中华优秀传统文化", dayX[4], 540)
+        lines += line("老师X【12-19周】", dayX[4], 570)
+        lines += line("A105", dayX[4], 600)
+
+        val courses = coursesFromOcr(lines, totalWeeks = 20, width = 1114)
+        val basic = courses.firstOrNull { it.name == "程序设计基础" }
+        assertTrue("没识别出「程序设计基础」：$courses", basic != null)
+        assertEquals(1, basic!!.dayOfWeek)
+        assertEquals(1, basic.startSection)
+        assertEquals(2, basic.endSection)
+        assertEquals("老师W", basic.teacher)
+        assertEquals("A101", basic.location)
+        assertEquals((4..19).toList(), basic.weeks)
+
+        val friday = courses.filter { it.dayOfWeek == 5 }
+        assertTrue("周五应该有两门课：$friday", friday.size >= 2)
+        val meiyu = friday.first { it.name.contains("美育") }
+        assertEquals("A106", meiyu.location)
+        assertEquals((4..11).toList(), meiyu.weeks)
+        val tradition = friday.first { it.name.contains("传统文化") }
+        assertEquals("老师X", tradition.teacher)
+        assertEquals((12..19).toList(), tradition.weeks)
+    }
 }

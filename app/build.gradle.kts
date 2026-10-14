@@ -22,6 +22,11 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1"
+        // OCR 的 native 库每个 ABI 有 6~11MB：只留手机（arm64）与模拟器（x86_64），
+        // 否则 APK 会白白多出 17MB 以上，冷启动也跟着变慢。
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     signingConfigs {
@@ -37,7 +42,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (ksFile != null) signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

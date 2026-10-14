@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
 package com.lorat.classschedule.ui.imports
 
@@ -7,6 +7,8 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -52,10 +55,20 @@ import com.lorat.classschedule.data.model.Course
 import com.lorat.classschedule.data.sectionsText
 import kotlinx.coroutines.launch
 
+/** 课表截图字普遍很小，先放大到长边约 2000px 再喂给 OCR，识别率高一截。 */
+private fun upscaleForOcr(bitmap: Bitmap): Bitmap {
+    val maxSide = maxOf(bitmap.width, bitmap.height)
+    // 注意用 ceil：小图必须真的放大（(2000/1114).toInt() = 1 等于没放大）
+    val factor = kotlin.math.ceil(2000.0 / maxSide).toInt().coerceIn(1, 3)
+    if (factor <= 1) return bitmap
+    return runCatching {
+        Bitmap.createScaledBitmap(bitmap, bitmap.width * factor, bitmap.height * factor, true)
+    }.getOrDefault(bitmap)
+}
+
 /** 从图片识别课表：本机离线 OCR（ML Kit 中文），不出网。 */
 @Composable
-fun ImageImportScreen(
-    repository: ScheduleRepository,
+fun ImageImportScreen(    repository: ScheduleRepository,
     onBack: () -> Unit,
 ) {
     val timetable by repository.timetable.collectAsStateWithLifecycle()
@@ -65,6 +78,8 @@ fun ImageImportScreen(
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("选一张课表截图，App 在本机离线识别，图片不会上传。") }
     var parsed by remember { mutableStateOf<List<Course>>(emptyList()) }
+    var rawLines by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showRaw by remember { mutableStateOf(false) }
     var pickedName by remember { mutableStateOf("") }
 
     fun recognize(uri: Uri) {
@@ -84,26 +99,39 @@ fun ImageImportScreen(
         } else {
             bitmap.copy(Bitmap.Config.ARGB_8888, false).also { bitmap.recycle() }
         }
+        // 小图先放大：课表截图字很小，放大后识别率明显更高
+        val forOcr = upscaleForOcr(software)
         val recognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
-        recognizer.process(InputImage.fromBitmap(software, 0))
+        recognizer.process(InputImage.fromBitmap(forOcr, 0))
             .addOnSuccessListener { text ->
-                val lines = text.textBlocks.flatMap { block -> block.lines }.mapNotNull { line ->
-                    val box = line.boundingBox ?: return@mapNotNull null
-                    OcrLine(line.text, box.left, box.top, box.right, box.bottom)
+                // 用 element（词级）而不是 line：教务课表里一排格子经常被 OCR 读成一整行，
+                // 词级坐标才有各自的框，能正确落回每一格。
+                val lines = text.textBlocks.flatMap { block -> block.lines }.flatMap { line ->
+                    val elements = line.elements
+                    if (elements.isEmpty()) {
+                        listOfNotNull(line.boundingBox?.let { OcrLine(line.text, it.left, it.top, it.right, it.bottom) })
+                    } else {
+                        elements.mapNotNull { element ->
+                            element.boundingBox?.let { OcrLine(element.text, it.left, it.top, it.right, it.bottom) }
+                        }
+                    }
                 }
-                val courses = coursesFromOcr(lines, timetable.totalWeeks, software.width)
+                val courses = coursesFromOcr(lines, timetable.totalWeeks, forOcr.width)
                 parsed = courses
+                rawLines = lines.map { it.text.trim() }.filter { it.isNotEmpty() }
                 busy = false
                 status = if (courses.isEmpty()) {
-                    "没识别出课表：截图里要能看到「周一..周日」表头和课程格子"
+                    "没识别出课表：截图里要能看到「周一..周日」表头和节次刻度"
                 } else {
-                    "识别到 ${courses.size} 个课程格子，确认无误再导入"
+                    "识别到 ${courses.size} 门课，确认无误再导入"
                 }
+                if (forOcr != software) forOcr.recycle()
                 recognizer.close()
             }
             .addOnFailureListener { error ->
                 busy = false
                 status = "识别失败：${error.message ?: "未知错误"}"
+                if (forOcr != software) forOcr.recycle()
                 recognizer.close()
             }
     }
@@ -155,6 +183,23 @@ fun ImageImportScreen(
                 }
             }
 
+            if (rawLines.isNotEmpty()) {
+                Card {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().combinedClickable { showRaw = !showRaw },
+                        ) {
+                            Text("识别到的原始文字（${rawLines.size} 行）", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(if (showRaw) "收起" else "展开", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                        }
+                        if (showRaw) {
+                            Text(rawLines.joinToString("\n"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
             if (parsed.isNotEmpty()) {
                 Card {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -163,7 +208,8 @@ fun ImageImportScreen(
                             Text(
                                 "${dayName(course.dayOfWeek)} ${sectionsText(course.startSection, course.endSection)}  " +
                                     course.name +
-                                    if (course.location.isNotBlank()) "  @${course.location}" else "",
+                                    if (course.teacher.isNotBlank()) "  ${course.teacher}" else "" +
+                                        if (course.location.isNotBlank()) "  @${course.location}" else "",
                                 fontSize = 13.sp,
                             )
                         }
