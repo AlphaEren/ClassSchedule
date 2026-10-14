@@ -61,7 +61,7 @@ fun MainNavigation(repository: ScheduleRepository) {
           SectionTimesScreen(repository = repository, onBack = { backStack.removeLastOrNull() })
         }
         entry<AboutRoute> {
-          AboutScreen(onBack = { backStack.removeLastOrNull() })
+          AboutScreen(repository = repository, onBack = { backStack.removeLastOrNull() })
         }
         entry<CourseListRoute> {
           CourseListScreen(
