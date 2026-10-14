@@ -42,6 +42,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -320,6 +321,9 @@ fun TimetableScreen(
             onExport = { showMore = false; showExport = true },
             onAbout = { showMore = false; onAbout() },
             onSetCurrentWeek = { target -> scope.launch { repository.setCurrentWeek(target) } },
+            onToggleOtherWeeks = { show ->
+                scope.launch { repository.updateAppearance(appearance.copy(showOtherWeeks = show)) }
+            },
         )
     }
 
@@ -1071,6 +1075,7 @@ private fun MoreSheet(
     onExport: () -> Unit,
     onAbout: () -> Unit,
     onSetCurrentWeek: (Int) -> Unit,
+    onToggleOtherWeeks: (Boolean) -> Unit,
 ) {
     val currentWeek = currentWeekOf(timetable)
     var slider by remember { mutableStateOf(currentWeek.toFloat()) }
@@ -1087,6 +1092,13 @@ private fun MoreSheet(
                     modifier = Modifier.weight(1f),
                 )
                 Text("第 ${slider.toInt()} 周", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("隐藏非本周课程", fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = !timetable.appearance.showOtherWeeks,
+                    onCheckedChange = { onToggleOtherWeeks(!it) },
+                )
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
