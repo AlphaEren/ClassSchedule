@@ -168,7 +168,9 @@ fun coursesFromOcr(
     }
     val firstBandLeft = if (dayCenters.isNotEmpty()) dayCenters.first().second - gap / 2 else Int.MIN_VALUE
 
-    // 2) 节次刻度 → 行带（刻度之间的中线切分，跨两小节的课自然落进两格）
+    // 2) 节次刻度 → 行块。国内课表常把两小节合成一个大节（1-2 / 3-4 / …）：
+    //    刻度间距若明显分成「组内紧、组间松」两档，就按小组归并，
+    //    这样课程会落在 1-2 而不是只落 1。
     val scale = cleaned
         .filter { it.top > headerTop + 24 }
         .filter { isSectionLabel(it.text) }
@@ -178,22 +180,41 @@ fun coursesFromOcr(
             if (acc.none { abs(it.first - line.cy) < 20 }) acc.add(line.cy to sectionRangeOfText(line.text)!!)
             acc
         }
-    val rowGap = if (scale.size >= 2) {
-        (scale.last().first - scale.first().first) / (scale.size - 1)
+    val gaps = scale.zipWithNext { a, b -> b.first - a.first }
+    val minGap = gaps.minOrNull() ?: 0
+    val maxGap = gaps.maxOrNull() ?: 0
+    // 间距分两档才认为存在「大节」
+    val paired = gaps.isNotEmpty() && minGap > 0 && maxGap >= minGap * 1.8
+    val groups: List<List<Pair<Int, IntRange>>> = if (paired) {
+        val limit = minGap * 1.5
+        val acc = mutableListOf<MutableList<Pair<Int, IntRange>>>()
+        for (i in scale.indices) {
+            if (acc.isEmpty() || (scale[i].first - scale[i - 1].first) >= limit) acc.add(mutableListOf())
+            acc.last().add(scale[i])
+        }
+        acc
+    } else {
+        scale.map { listOf(it) }
+    }
+    val blockSections = groups.map { g -> g.first().second.first..g.last().second.last }
+    val blockCenters = groups.map { g -> (g.first().first + g.last().first) / 2 }
+    val rowGap = if (blockCenters.size >= 2) {
+        (blockCenters.last() - blockCenters.first()) / (blockCenters.size - 1)
     } else {
         0
     }
-    // 每个刻度带的下边界（与下一刻度中线）；最后一个带往下延伸
-    val bandBottom = scale.indices.map { i ->
+    val bandBottom = blockCenters.indices.map { i ->
         when {
-            scale.size == 1 -> Int.MAX_VALUE
-            i == scale.lastIndex -> scale[i].first + rowGap
-            else -> (scale[i].first + scale[i + 1].first) / 2
+            blockCenters.size == 1 -> Int.MAX_VALUE
+            i == blockCenters.lastIndex -> blockCenters[i] + maxOf(rowGap, 60) / 2
+            else -> (blockCenters[i] + blockCenters[i + 1]) / 2
         }
     }
+    // 表格底边：最后一行块再往下半个行高；用于丢掉表格外的工具条/水印文字
+    val tableBottom = blockCenters.lastOrNull()?.let { it + maxOf(rowGap, 60) }
     fun bandOf(cy: Int): Int? {
-        if (scale.isEmpty()) return null
-        for (i in scale.indices) {
+        if (blockCenters.isEmpty()) return null
+        for (i in blockCenters.indices) {
             val top = if (i == 0) Int.MIN_VALUE else bandBottom[i - 1]
             if (cy >= top && cy < bandBottom[i]) return i
         }
@@ -206,6 +227,8 @@ fun coursesFromOcr(
         if (isSectionLabel(line.text)) continue
         if (dayOfText(line.text) != null && line.top <= headerTop + 40) continue
         if (headerTop > 0 && line.bottom < headerTop) continue
+        // 表格底边以下的内容（截图工具条「提取文字/更多」、水印之类）一律不是课程
+        if (tableBottom != null && line.cy > tableBottom) continue
         if (dayCenters.isNotEmpty()) {
             if (line.cx < firstBandLeft) continue
         } else if (line.cx < width * 0.15f) {
@@ -240,18 +263,24 @@ fun coursesFromOcr(
         for (draft in drafts) {
             val name = draft.name.trim().take(40)
             if (name.length < 2) continue
-            val (start, end) = if (scale.isEmpty()) {
+            val (start, end) = if (blockCenters.isEmpty()) {
                 val row = fallbackRow[draft.nameCy ?: draft.cys.firstOrNull() ?: 0] ?: 1
                 row to row
+            } else if (paired) {
+                // 大节课表：课程名落在哪个行块，就取该块的完整节次范围（1-2 / 3-4 / …）
+                val block = (bandOf(draft.nameCy ?: draft.cys.firstOrNull() ?: 0) ?: 0)
+                    .coerceIn(0, blockSections.lastIndex)
+                blockSections[block].first to blockSections[block].last
             } else {
-                val firstBand = (bandOf(draft.nameCy ?: draft.cys.firstOrNull() ?: 0) ?: 0).coerceIn(0, scale.lastIndex)
+                val firstBand = (bandOf(draft.nameCy ?: draft.cys.firstOrNull() ?: 0) ?: 0)
+                    .coerceIn(0, blockSections.lastIndex)
                 var lastBand = firstBand
                 for (cy in draft.cys) {
                     val band = bandOf(cy) ?: continue
                     if (band > lastBand && cy > bandBottom[lastBand] + rowGap * 0.25) lastBand = band
                 }
-                lastBand = lastBand.coerceIn(firstBand, scale.lastIndex)
-                scale[firstBand].second.first to scale[lastBand].second.last
+                lastBand = lastBand.coerceIn(firstBand, blockSections.lastIndex)
+                blockSections[firstBand].first to blockSections[lastBand].last
             }
             out.add(courseOf(out.size, name, draft, day, start.coerceIn(1, 20), end.coerceIn(start, 20)))
         }

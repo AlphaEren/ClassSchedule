@@ -81,6 +81,62 @@ class OcrTimetableTest {
         assertEquals("A101", courses.first().location)
     }
 
+    /**
+     * 真实教务课表（1114x729）的几何：节次是「大节」（1-2 / 3-4 / 5-6 / 7-8 / 9-10 成对，
+     * 组内间距约 28px、组间 45~117px），底部还有截图工具条的「提取文字 / 更多」。
+     */
+    @Test
+    fun `big-section table pairs rows and drops toolbar noise`() {
+        val col = listOf(435, 550, 665, 780, 895, 1010, 1060)
+        val lines = mutableListOf<OcrLine>()
+        listOf("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
+            .forEachIndexed { i, d -> lines += line(d, col[i], 58) }
+        val rows = listOf(
+            1 to 88, 2 to 115, 3 to 160, 4 to 187, 5 to 290,
+            6 to 320, 7 to 400, 8 to 428, 9 to 545, 10 to 575,
+        )
+        rows.forEach { (n, y) -> lines += line(n.toString(), 115, y) }
+        lines += line("程序设计基础", col[0], 105)
+        lines += line("王老师【4-19周】", col[0], 128)
+        lines += line("图402", col[0], 148)
+        lines += line("大学美育", col[4], 285)
+        lines += line("宋老师【4-11周】", col[4], 300)
+        lines += line("敏107", col[4], 315)
+        lines += line("中华优秀传统文化", col[4], 328)
+        lines += line("李老师【12-19周】", col[4], 343)
+        lines += line("敏106", col[4], 356)
+        lines += line("军事理论(网课)", col[3], 552)
+        lines += line("闵老师【7-14周】", col[3], 570)
+        lines += line("劳动教育(网课)", col[3], 590)
+        lines += line("文老师【15-18周】", col[3], 606)
+        lines += line("提取文字", 1050, 700)
+        lines += line("更多", 1095, 700)
+
+        val courses = coursesFromOcr(lines, totalWeeks = 20, width = 1114)
+        assertTrue("至少要识别出这几门课：$courses", courses.size >= 5)
+        assertTrue(
+            "工具条文字不能变成课程：$courses",
+            courses.none { it.name.contains("提取文字") || it.name == "更多" },
+        )
+
+        val basic = courses.first { it.name == "程序设计基础" }
+        assertEquals(1, basic.dayOfWeek)
+        assertEquals("大节 1-2", "1-2", "${basic.startSection}-${basic.endSection}")
+        assertEquals("王老师", basic.teacher)
+        assertEquals("图402", basic.location)
+        assertEquals((4..19).toList(), basic.weeks)
+
+        val friday = courses.filter { it.dayOfWeek == 5 }
+        assertTrue("周五一格两门课要拆开：$friday", friday.size >= 2)
+        friday.forEach { assertEquals("大节 5-6", "5-6", "${it.startSection}-${it.endSection}") }
+        assertEquals("敏107", friday.first { it.name.contains("美育") }.location)
+        assertEquals((12..19).toList(), friday.first { it.name.contains("传统文化") }.weeks)
+
+        val thursday = courses.filter { it.dayOfWeek == 4 }
+        assertTrue("周四大节 9-10 两门网课：$thursday", thursday.size >= 2)
+        thursday.forEach { assertEquals("大节 9-10", "9-10", "${it.startSection}-${it.endSection}") }
+    }
+
     /** 学校教务导出的课表样式：`星期一`表头、`老师【4-19周】`混排、`A101`地点、一格两门课。 */
     @Test
     fun `parses a school style table with teacher-weeks lines and two courses in one cell`() {
