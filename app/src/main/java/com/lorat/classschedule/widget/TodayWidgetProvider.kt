@@ -115,7 +115,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_empty, View.GONE)
             }
 
-            val autoColors = autoColorMap(timetable.courses.map { it.name })
+            val autoColors = autoColorMap(mine.map { it.name })
             for (index in 0 until MAX_ROWS) {
                 val course = mine.getOrNull(index)
                 if (course == null) {

@@ -66,6 +66,8 @@ import com.lorat.classschedule.data.nextColorIndex
 import com.lorat.classschedule.data.sectionsText
 import com.lorat.classschedule.data.weeksText
 import com.lorat.classschedule.ui.CourseColors
+import com.lorat.classschedule.ui.explicitColorIndex
+import com.lorat.classschedule.ui.isExplicitColor
 import com.lorat.classschedule.ui.RandomCourseColor
 import androidx.compose.ui.graphics.Brush
 import kotlinx.coroutines.launch
@@ -230,24 +232,25 @@ fun CourseEditScreen(
                                 .combinedClickable { colorIndex = RandomCourseColor },
                         )
                         CourseColors.forEachIndexed { index, color ->
+                            val picked = colorIndex == explicitColorIndex(index)
                             Box(
                                 modifier = Modifier
                                     .size(28.dp)
                                     .clip(CircleShape)
                                     .background(color)
                                     .then(
-                                        if (index == colorIndex) {
+                                        if (picked) {
                                             Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
                                         } else {
                                             Modifier
                                         },
                                     )
-                                    .combinedClickable { colorIndex = index },
+                                    .combinedClickable { colorIndex = explicitColorIndex(index) },
                             )
                         }
                     }
                     Text(
-                        if (colorIndex == RandomCourseColor) "随机彩色（默认，按课程名固定）" else "已选固定颜色",
+                        if (isExplicitColor(colorIndex)) "已选固定颜色" else "自动配色（默认，一周内不重复）",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

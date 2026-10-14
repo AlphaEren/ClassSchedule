@@ -35,7 +35,7 @@ class ScheduleRepository(context: Context) {
 
     private fun load(): Timetable = runCatching {
         val raw = if (file.exists()) json.decodeFromString(Timetable.serializer(), file.readText()) else Timetable()
-        normalizeColors(raw)
+        raw
     }.getOrElse {
         // Never throw away a file we could not read (wrong encoding, half-written, …):
         // keep a copy next to the fresh one so nothing is silently lost.
@@ -43,20 +43,6 @@ class ScheduleRepository(context: Context) {
         Timetable()
     }
 
-    /**
-     * 老版本的导入把颜色写死成「课程名 hash % 8」，一学期十几门课必然撞色。
-     * 这类值一律改回「自动色」，交给统一的自动配色（同名同色、异名不重复）。
-     */
-    private fun normalizeColors(value: Timetable): Timetable {
-        val courses = value.courses
-        val looksAuto = { name: String, index: Int -> index >= 0 && index == Math.floorMod(name.hashCode(), 8) }
-        if (courses.none { looksAuto(it.name, it.colorIndex) }) return value
-        return value.copy(
-            courses = courses.map {
-                if (looksAuto(it.name, it.colorIndex)) it.copy(colorIndex = -1) else it
-            },
-        )
-    }
 
     suspend fun save(value: Timetable) = withContext(Dispatchers.IO) {
         file.writeText(json.encodeToString(Timetable.serializer(), value))

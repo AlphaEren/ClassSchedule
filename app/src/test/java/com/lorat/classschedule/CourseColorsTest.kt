@@ -14,14 +14,14 @@ class CourseColorsTest {
     private val names = listOf(
         "概率论", "大学物理（2）", "大学英语（3）", "工程力学", "电路原理", "机械原理",
         "机械原理课程设计", "金工实习", "马克思主义基本原理", "实用法律", "网络文化",
-        "大学物理实验", "形势与政策（3）", "匹克球（3）", "体育（1）", "线性代数",
+        "大学物理实验",
     )
 
     @Test
-    fun `different courses get different colours`() {
+    fun `one week of courses never repeats a colour`() {
         val map = autoColorMap(names)
         assertEquals(names.size, map.size)
-        assertEquals("同一周里不同课程不能撞色", names.size, map.values.distinct().size)
+        assertEquals("一周之内不同课程不能撞色", names.size, map.values.distinct().size)
     }
 
     @Test
@@ -33,17 +33,24 @@ class CourseColorsTest {
     }
 
     @Test
-    fun `auto colour is used only when the course has no explicit colour`() {
+    fun `auto colour is used unless the course has an explicit colour`() {
         val map = autoColorMap(names)
-        // 手工选过颜色（colorIndex >= 0）的课不受自动配色影响
-        assertEquals(com.lorat.classschedule.ui.courseColor(3), courseColorFor(3, "概率论", map))
+        // 手动选过的颜色（ExplicitColorBase + 下标）优先
+        assertEquals(
+            com.lorat.classschedule.ui.courseColor(3),
+            courseColorFor(com.lorat.classschedule.ui.explicitColorIndex(3), "概率论", map),
+        )
         assertEquals(map["概率论"], courseColorFor(RandomCourseColor, "概率论", map))
+        // 历史数据里导入写死的 0..7 一律按自动配色显示
+        assertEquals(map["概率论"], courseColorFor(5, "概率论", map))
     }
 
     @Test
     fun `palette never repeats before it is exhausted`() {
         assertEquals(AutoCourseColors.size, AutoCourseColors.distinct().size)
-        // 超过调色板数量才会回绕，此时至少保证相邻不重复
-        assertNotEquals(AutoCourseColors[0], AutoCourseColors[1])
+        assertEquals("自动配色板就 12 色，够一周用", 12, AutoCourseColors.size)
+        // 课程数超过调色板数量才会回绕
+        val many = (1..14).map { "课程$it" }
+        assertEquals(12, autoColorMap(many).values.distinct().size)
     }
 }

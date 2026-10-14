@@ -670,8 +670,6 @@ private fun TimetableGrid(
     val rowHeight = appearance.cellHeight.dp
     val totalWeeks = maxOf(1, timetable.totalWeeks)
     val groups = remember(timetable.courses) { timetable.courseGroups().associateBy { it.key } }
-    // 自动色：按课程名全局分配，同名同色、异名不重复（手工选过颜色的课不受影响）
-    val autoColors = remember(timetable.courses) { autoColorMap(timetable.courses.map { it.name }) }
     val todayCol = columns.indexOf(LocalDate.now().dayOfWeek.value)
     val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (appearance.gridLines) 0.12f else 0f)
     val primary = MaterialTheme.colorScheme.primary
@@ -726,7 +724,6 @@ private fun TimetableGrid(
                     onCourseClick = onCourseClick,
                     onCourseLongClick = onCourseLongClick,
                     onEmptyLongPress = onEmptyLongPress,
-                    autoColors = autoColors,
                 )
             }
         }
@@ -743,7 +740,6 @@ private fun WeekPage(
     sections: Int,
     rowHeight: Dp,
     groups: Map<String, CourseGroup>,
-    autoColors: Map<String, Color>,
     todayCol: Int,
     lineColor: Color,
     primary: Color,
@@ -795,6 +791,8 @@ private fun WeekPage(
         val placed = remember(timetable.courses, columns, week, appearance) {
             placement(timetable, columns, week)
         }
+        // 自动配色只看「这一周」出现的课程：一周之内不出现重复色就够（调色板 12 色）
+        val autoColors = remember(placed) { autoColorMap(placed.map { it.course.name }) }
         for (p in placed) {
             val group = groups[p.course.groupKey] ?: continue
             val sliceWidth = colWidth / p.slices
