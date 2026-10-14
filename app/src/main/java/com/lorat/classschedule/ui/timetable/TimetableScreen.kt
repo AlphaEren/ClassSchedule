@@ -83,7 +83,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lorat.classschedule.data.DayShortNames
-import com.lorat.classschedule.data.Diagnostics
 import com.lorat.classschedule.data.ScheduleRepository
 import com.lorat.classschedule.data.TimetableExtractor
 import com.lorat.classschedule.data.currentWeekOf
@@ -214,11 +213,6 @@ fun TimetableScreen(
                         }
                     } else {
                         updateFailed = true
-                        Diagnostics.add(
-                            "自动更新未识别到课表：" +
-                                (result?.let { TimetableExtractor.failureMessage(it) } ?: "识别失败") +
-                                "（mode=${result?.mode.orEmpty()} system=${result?.system.orEmpty()}）",
-                        )
                     }
                 },
             )

@@ -49,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.lorat.classschedule.data.Diagnostics
 import com.lorat.classschedule.data.ScheduleRepository
 import com.lorat.classschedule.data.TimetableExtractor
 import com.lorat.classschedule.data.model.Course
@@ -295,7 +294,6 @@ fun WebImportScreen(
                                 onPageInfo = { info ->
                                     if (loadLogs.size > 40) loadLogs.removeAt(0)
                                     loadLogs.add(info)
-                                    Diagnostics.add(info)
                                     if (info.contains("\"input\":\"") && !info.contains("\"input\":\"none\"")) {
                                         pageHint = "已检测到登录表单：在页面里登录后再点「识别课表」。" +
                                             "若页面空白/点不动，点右上角「浏览器」改用系统浏览器打开。"
@@ -304,12 +302,10 @@ fun WebImportScreen(
                                 onConsole = { line ->
                                     if (loadLogs.size > 40) loadLogs.removeAt(0)
                                     loadLogs.add(line)
-                                    Diagnostics.add(line)
                                 },
                                 onHttpError = { url, code ->
                                     if (loadLogs.size > 40) loadLogs.removeAt(0)
                                     loadLogs.add("HTTP $code  $url")
-                                    Diagnostics.add("HTTP $code")
                                 },
                             )
                             webViewState.value = this
