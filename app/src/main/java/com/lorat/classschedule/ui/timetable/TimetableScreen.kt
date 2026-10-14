@@ -235,7 +235,6 @@ fun TimetableScreen(
                 week = week,
                 totalWeeks = totalWeeks,
                 isCurrentWeek = isCurrentWeek,
-                today = dayName(today.dayOfWeek.value),
                 subtitle = subtitleOf(timetable),
                 progress = if (timetable.semesterStartDate.isBlank()) {
                     "未设置开学日期 · 点此说明现在是第几周"
@@ -391,7 +390,6 @@ private fun Header(
     week: Int,
     totalWeeks: Int,
     isCurrentWeek: Boolean,
-    today: String,
     subtitle: String,
     progress: String,
     textOverride: Color?,
@@ -424,11 +422,6 @@ private fun Header(
                     ChevronDownIcon(tint = tint, size = 16.dp)
                 }
                 WeekStepButton(enabled = week < totalWeeks, right = true, tint = tint) { onWeekStep(1) }
-                // 只在当前周补一个「今天周几」；看别的周时这块留空，高度由下面的状态行保证不变
-                if (isCurrentWeek) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(today, fontSize = 12.sp, color = muted, maxLines = 1, softWrap = false)
-                }
             }
             if (subtitle.isNotBlank()) Text(subtitle, fontSize = 11.sp, color = muted)
         }
