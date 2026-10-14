@@ -22,8 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,10 @@ private const val REPO_URL = "https://github.com/AlphaEren/ClassSchedule"
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    val appVersion = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "0.2"
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -54,7 +60,7 @@ fun AboutScreen(onBack: () -> Unit) {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("ClassSchedule 课表", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                    Text("版本 0.1 · Kotlin + Jetpack Compose", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("版本 $appVersion · Kotlin + Jetpack Compose", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         "功能与观感参考 WakeUp课程表（i.wakeup.fun）实现：周次标题栏、日期栏、左侧时间轴、彩色课程格子、" +
                             "多时间段课程、课表外观自定义、CSV/备份导入导出。",
