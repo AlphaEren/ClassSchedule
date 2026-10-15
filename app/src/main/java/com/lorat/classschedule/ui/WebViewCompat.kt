@@ -16,6 +16,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.lorat.classschedule.data.AppLog
+import com.lorat.classschedule.data.redactUrl
 
 /**
  * Shared WebView hardening for campus academic systems.
@@ -134,10 +136,12 @@ object WebViewCompat {
         web.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 // Install as early as we can so the timetable's own XHR/fetch calls are captured.
+                AppLog.i("WebView", "开始加载 " + redactUrl(url))
                 view.evaluateJavascript(NetSniffer.installJs, null)
             }
 
             override fun onPageFinished(view: WebView, url: String) {
+                AppLog.i("WebView", "加载完成 " + redactUrl(url))
                 view.evaluateJavascript(NetSniffer.installJs, null)
                 fun probe(tag: String) {
                     view.evaluateJavascript(ProbeJs) { raw ->
@@ -149,6 +153,7 @@ object WebViewCompat {
                             .replace("\\/", "/")
                         val line = "$tag $text"
                         Log.i(Tag, line)
+                        AppLog.i("WebView", line)
                         onPageInfo(line)
                     }
                 }
@@ -163,7 +168,13 @@ object WebViewCompat {
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 Log.w(Tag, "ERR ${error.errorCode} ${error.description} ${request.url}")
-                if (request.isForMainFrame) onError(error.description?.toString() ?: "页面加载失败")
+                if (request.isForMainFrame) {
+                    AppLog.e(
+                        "WebView",
+                        "页面加载失败 code=${error.errorCode} ${error.description} ${redactUrl(request.url.toString())}",
+                    )
+                    onError(error.description?.toString() ?: "页面加载失败")
+                }
             }
 
             override fun onReceivedHttpError(
@@ -173,6 +184,7 @@ object WebViewCompat {
             ) {
                 val code = errorResponse.statusCode
                 Log.w(Tag, "HTTP $code ${request.url}")
+                AppLog.w("WebView", "HTTP $code ${redactUrl(request.url.toString())}")
                 if (request.isForMainFrame) onHttpError(request.url.toString(), code)
             }
         }
@@ -185,6 +197,7 @@ object WebViewCompat {
             override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
                 val line = "[${msg.messageLevel()}] ${msg.message()}  (${msg.sourceId()}:${msg.lineNumber()})"
                 Log.w(Tag, line)
+                AppLog.w("WebView", line)
                 onConsole(line)
                 return true
             }

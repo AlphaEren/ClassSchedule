@@ -39,6 +39,10 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"   # 模拟器 AVD: clas
 
 - 翻周：标题 `‹ 第N周 ▾ ›` 单步 + 课表区左右滑动（一页一周）。滑动是**自己实现的**
   （`detectHorizontalDragGestures` + `userScrollEnabled = false`）：Pager 自带「拖动 + 惯性」会一次翻两页。
+- 本地日志：`data/AppLog.kt`（只写文件、不联网）。位置 `/sdcard/Android/data/<包名>/files/logs/classschedule-<日期>.log`，
+  按天一个、保留 7 个；启动时写会话头（版本/机型/WebView）、内置浏览器的报错与 DOM 探针、静默更新与导入结果，
+  并捕获未处理异常的堆栈。**不写课程名/老师/地点**；网址经 `redactUrl` 只留 `scheme://host/第一段/…`（查询串会丢掉）。
+  纯函数（`logFileName` / `redactUrl` / `filesToDelete`）有 `AppLogTest` 覆盖。
 - 长按课表空格子可直接按该格星期/节次新建课程；新课程颜色默认「随机彩色」（`colorIndex = -1`，按课程名取色）。
 - 「隐藏非本周课程」开关在 `⋯` 面板和「课表设置 → 课表外观」两处，都写 `showOtherWeeks`。
 - 图片识别：`data/OcrTimetable.kt` + `ui/imports/ImageImportScreen.kt`，ML Kit 离线中文 OCR。

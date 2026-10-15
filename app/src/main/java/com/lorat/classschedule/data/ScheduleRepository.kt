@@ -39,6 +39,7 @@ class ScheduleRepository(context: Context) {
     }.getOrElse {
         // Never throw away a file we could not read (wrong encoding, half-written, …):
         // keep a copy next to the fresh one so nothing is silently lost.
+        AppLog.e("Storage", "课表文件读取失败，已另存为 timetable.unreadable.json", it)
         runCatching { file.copyTo(File(file.parentFile, "timetable.unreadable.json"), overwrite = true) }
         Timetable()
     }

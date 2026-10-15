@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lorat.classschedule.data.AppLog
 import com.lorat.classschedule.data.ScheduleRepository
 import com.lorat.classschedule.data.TimetableExtractor
 import com.lorat.classschedule.data.model.Course
@@ -104,6 +105,10 @@ fun WebImportScreen(
             when {
                 courses.isNotEmpty() -> {
                     val found = result.foundUrl
+                    AppLog.i(
+                        "Import",
+                        "识别成功 mode=${result.mode} system=${result.system} 课程=${courses.size} 节次=${result.sectionTimes.size}",
+                    )
                     if (autoMode) {
                         scope.launch {
                             if (found.isNotBlank()) repository.setRefreshUrl(found)
@@ -138,6 +143,7 @@ fun WebImportScreen(
                 else -> {
                     scanning = false
                     val reason = TimetableExtractor.failureMessage(result)
+                    AppLog.w("Import", "识别失败 mode=${result.mode} system=${result.system} 原因=$reason")
                     if (autoMode) {
                         revealPage = true
                         status = "自动更新失败：$reason"

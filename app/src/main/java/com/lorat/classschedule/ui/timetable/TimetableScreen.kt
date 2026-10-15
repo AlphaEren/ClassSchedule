@@ -83,6 +83,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lorat.classschedule.data.DayShortNames
+import com.lorat.classschedule.data.AppLog
 import com.lorat.classschedule.data.ScheduleRepository
 import com.lorat.classschedule.data.TimetableExtractor
 import com.lorat.classschedule.data.currentWeekOf
@@ -201,6 +202,7 @@ fun TimetableScreen(
                 onResult = { courses, foundUrl, result ->
                     silentUpdating = false
                     if (courses != null && courses.isNotEmpty()) {
+                        AppLog.i("Update", "静默更新成功：课程 ${courses.size}")
                         scope.launch {
                             if (foundUrl.isNotBlank()) repository.setRefreshUrl(foundUrl)
                             repository.applyImport(
@@ -213,6 +215,11 @@ fun TimetableScreen(
                         }
                     } else {
                         updateFailed = true
+                        AppLog.w(
+                            "Update",
+                            "静默更新失败 mode=${result?.mode.orEmpty()} system=${result?.system.orEmpty()} " +
+                                "原因=${result?.let { TimetableExtractor.failureMessage(it) } ?: "识别失败"}",
+                        )
                     }
                 },
             )

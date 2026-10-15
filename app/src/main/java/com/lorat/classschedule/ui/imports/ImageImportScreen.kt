@@ -48,6 +48,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.lorat.classschedule.data.OcrLine
+import com.lorat.classschedule.data.AppLog
 import com.lorat.classschedule.data.ScheduleRepository
 import com.lorat.classschedule.data.coursesFromOcr
 import com.lorat.classschedule.data.dayName
@@ -117,6 +118,7 @@ fun ImageImportScreen(    repository: ScheduleRepository,
                     }
                 }
                 val courses = coursesFromOcr(lines, timetable.totalWeeks, forOcr.width)
+                AppLog.i("OcrImport", "识别完成：文字块 ${lines.size}，课程 ${courses.size}")
                 parsed = courses
                 rawLines = lines.map { it.text.trim() }.filter { it.isNotEmpty() }
                 busy = false
@@ -131,6 +133,7 @@ fun ImageImportScreen(    repository: ScheduleRepository,
             .addOnFailureListener { error ->
                 busy = false
                 status = "识别失败：${error.message ?: "未知错误"}"
+                AppLog.e("OcrImport", "识别失败", error)
                 if (forOcr != software) forOcr.recycle()
                 recognizer.close()
             }
