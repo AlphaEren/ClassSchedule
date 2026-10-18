@@ -558,6 +558,7 @@ private fun TimetableScreenContent(
             slot = slot,
             timetable = timetable,
             week = week,
+            isCurrentWeek = week == currentWeek,
             accent = courseColorFor(
                 group.colorIndex,
                 group.name,
@@ -565,6 +566,20 @@ private fun TimetableScreenContent(
             ),
             onDismiss = { detailTarget = null },
             onEdit = { detailTarget = null; onAddCourse(group.key) },
+            onSaveNote = { text, onlyThisWeek ->
+                scope.launch {
+                    repository.setNote(
+                        key = group.key,
+                        day = slot.dayOfWeek,
+                        start = slot.startSection,
+                        end = slot.endSection,
+                        week = week,
+                        note = text,
+                        onlyThisWeek = onlyThisWeek,
+                    )
+                    snackbarHostState.showSnackbar(Lang.tr("备注已保存"))
+                }
+            },
             onDuplicate = {
                 detailTarget = null
                 scope.launch {

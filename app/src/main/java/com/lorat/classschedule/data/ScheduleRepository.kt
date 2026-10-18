@@ -190,6 +190,25 @@ class ScheduleRepository(context: Context) {
         )
     }
 
+    /** 写备注：onlyThisWeek 时只覆盖这一周，否则写整门课。 */
+    suspend fun setNote(
+        key: String,
+        day: Int,
+        start: Int,
+        end: Int,
+        week: Int,
+        note: String,
+        onlyThisWeek: Boolean,
+    ) {
+        val current = _timetable.value
+        val updated = if (onlyThisWeek) {
+            current.courses.withWeekNote(key, day, start, end, week, note)
+        } else {
+            current.courses.withGroupNote(key, note)
+        }
+        save(current.copy(courses = updated))
+    }
+
     /** 复制整门课，名字后面加 [nameSuffix]，返回新分组的 key（方便直接打开编辑）。 */
     suspend fun duplicateCourseGroup(key: String, nameSuffix: String): String? {
         val current = _timetable.value

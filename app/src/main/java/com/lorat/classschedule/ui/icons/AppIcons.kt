@@ -231,3 +231,21 @@ fun TrashIcon(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
         line(tint, Offset(0.34f, 0.88f), Offset(0.66f, 0.88f))
     }
 }
+
+/** ✓ — 保存备注. */
+@Composable
+fun CheckIcon(tint: Color, size: Dp = 18.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        line(tint, Offset(0.18f, 0.52f), Offset(0.42f, 0.76f))
+        line(tint, Offset(0.42f, 0.76f), Offset(0.84f, 0.26f))
+    }
+}
+
+/** × — 取消编辑. */
+@Composable
+fun CloseIcon(tint: Color, size: Dp = 16.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        line(tint, Offset(0.22f, 0.22f), Offset(0.78f, 0.78f))
+        line(tint, Offset(0.78f, 0.22f), Offset(0.22f, 0.78f))
+    }
+}

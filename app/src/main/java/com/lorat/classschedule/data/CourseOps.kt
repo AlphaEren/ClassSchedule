@@ -52,7 +52,9 @@ fun Timetable.courseGroups(): List<CourseGroup> =
                 } else {
                     same.flatMap { it.weeks }.distinct().sorted()
                 }
-                same.first().copy(weeks = weeks)
+                val weekNotes = LinkedHashMap<Int, String>()
+                same.forEach { weekNotes.putAll(it.weekNotes) }
+                same.first().copy(weeks = weeks, weekNotes = weekNotes)
             }
             .sortedWith(compareBy({ it.dayOfWeek }, { it.startSection }))
         CourseGroup(
@@ -68,6 +70,39 @@ fun Timetable.courseGroups(): List<CourseGroup> =
     }
 
 fun Timetable.groupOf(key: String): CourseGroup? = courseGroups().firstOrNull { it.key == key }
+
+/** 这一周这一节的备注：优先取按周覆盖的，否则用整门课的备注。 */
+fun CourseGroup.noteFor(week: Int, day: Int, start: Int, end: Int): String {
+    val slot = slots.firstOrNull { it.dayOfWeek == day && it.startSection == start && it.endSection == end }
+        ?: return note
+    return slot.weekNotes[week] ?: slot.note
+}
+
+/** 只给「某天某节」的某一周写备注（空字符串表示这一周显式没有备注）。 */
+fun List<Course>.withWeekNote(
+    key: String,
+    day: Int,
+    start: Int,
+    end: Int,
+    week: Int,
+    note: String,
+): List<Course> = map { course ->
+    if (course.groupKey == key &&
+        course.dayOfWeek == day &&
+        course.startSection == start &&
+        course.endSection == end &&
+        course.matchesWeek(week)
+    ) {
+        course.copy(weekNotes = course.weekNotes + (week to note))
+    } else {
+        course
+    }
+}
+
+/** 给整门课写备注，并清掉之前按周覆盖的备注。 */
+fun List<Course>.withGroupNote(key: String, note: String): List<Course> = map { course ->
+    if (course.groupKey == key) course.copy(note = note, weekNotes = emptyMap()) else course
+}
 
 /** "单周" / "双周" when every week shares the same parity, otherwise null. */
 fun parityLabel(weeks: List<Int>, totalWeeks: Int): String? {

@@ -32,6 +32,7 @@ internal val EN: Map<String, String> = mapOf(
     "副本" to "copy",
     "备注" to "Note",
     "备注（可不填）" to "Note (optional)",
+    "备注已保存" to "Note saved",
     "边框使用格子颜色" to "Border uses cell color",
     "编辑" to "Edit",
     "编辑课程" to "Edit course",

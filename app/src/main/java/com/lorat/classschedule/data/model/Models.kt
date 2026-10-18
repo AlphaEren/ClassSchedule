@@ -29,6 +29,8 @@ data class Course(
     /** Course-level extras, duplicated across the meetings of one course. */
     val credit: String = "",
     val note: String = "",
+    /** 按周覆盖的备注（key = 周次）；没有对应 key 时用 [note]。 */
+    val weekNotes: Map<Int, String> = emptyMap(),
 ) {
     fun matchesWeek(week: Int): Boolean = weeks.isEmpty() || week in weeks
 

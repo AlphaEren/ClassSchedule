@@ -2,6 +2,7 @@ package com.lorat.classschedule.ui.course
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -23,6 +25,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,7 +33,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,12 +48,15 @@ import com.lorat.classschedule.data.CourseGroup
 import com.lorat.classschedule.data.dayName
 import com.lorat.classschedule.data.model.Course
 import com.lorat.classschedule.data.model.Timetable
+import com.lorat.classschedule.data.noteFor
 import com.lorat.classschedule.data.timeText
 import com.lorat.classschedule.data.weeksText
 import com.lorat.classschedule.i18n.Lang
 import com.lorat.classschedule.i18n.Text
 import com.lorat.classschedule.ui.icons.CalendarIcon
+import com.lorat.classschedule.ui.icons.CheckIcon
 import com.lorat.classschedule.ui.icons.ClockIcon
+import com.lorat.classschedule.ui.icons.CloseIcon
 import com.lorat.classschedule.ui.icons.CopyIcon
 import com.lorat.classschedule.ui.icons.LocationIcon
 import com.lorat.classschedule.ui.icons.NoteIcon
@@ -66,16 +77,29 @@ fun CourseDetailSheet(
     slot: Course,
     timetable: Timetable,
     week: Int,
+    isCurrentWeek: Boolean,
     accent: Color,
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
     onDuplicate: () -> Unit,
+    onSaveNote: (note: String, onlyThisWeek: Boolean) -> Unit,
     onDelete: (DeleteScope) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var choosingDelete by remember { mutableStateOf(false) }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val totalWeeks = maxOf(1, timetable.totalWeeks)
+
+    // 备注：点一下就地编辑，保存时选「仅本周 / 所有周」
+    var editingNote by remember { mutableStateOf(false) }
+    var noteText by remember { mutableStateOf("") }
+    var noteWeekOnly by remember { mutableStateOf(false) }
+    var displayNote by remember(group.key, week, slot.dayOfWeek, slot.startSection, slot.endSection) {
+        mutableStateOf(group.noteFor(week, slot.dayOfWeek, slot.startSection, slot.endSection))
+    }
+    val noteFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(editingNote) { if (editingNote) noteFocus.requestFocus() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -149,19 +173,107 @@ fun CourseDetailSheet(
                         }
                     }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { NoteIcon(tint = muted) }
-                    Spacer(Modifier.width(14.dp))
-                    Text(
-                        group.note.ifBlank { "备注（可不填）" },
-                        fontSize = 15.sp,
-                        color = if (group.note.isBlank()) muted else MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                if (editingNote) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Box(Modifier.size(22.dp).padding(top = 6.dp), contentAlignment = Alignment.Center) {
+                            NoteIcon(tint = muted)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                BasicTextField(
+                                    value = noteText,
+                                    onValueChange = { noteText = it.take(60) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .focusRequester(noteFocus)
+                                        .padding(vertical = 6.dp),
+                                    textStyle = TextStyle(
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    ),
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    maxLines = 3,
+                                    decorationBox = { inner ->
+                                        Box {
+                                            if (noteText.isEmpty()) {
+                                                Text("备注（可不填）", fontSize = 15.sp, color = muted)
+                                            }
+                                            inner()
+                                        }
+                                    },
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                        .clickable {
+                                            val trimmed = noteText.trim()
+                                            displayNote = trimmed
+                                            editingNote = false
+                                            keyboard?.hide()
+                                            onSaveNote(trimmed, noteWeekOnly)
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) { CheckIcon(tint = MaterialTheme.colorScheme.onSurface, size = 18.dp) }
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            editingNote = false
+                                            keyboard?.hide()
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) { CloseIcon(tint = muted, size = 16.dp) }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                ScopeChip(
+                                    label = if (isCurrentWeek) "仅本周" else "仅第 $week 周",
+                                    selected = noteWeekOnly,
+                                    onClick = { noteWeekOnly = true },
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                ScopeChip(
+                                    label = "所有周",
+                                    selected = !noteWeekOnly,
+                                    onClick = { noteWeekOnly = false },
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                noteText = displayNote
+                                noteWeekOnly = false
+                                editingNote = true
+                            }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { NoteIcon(tint = muted) }
+                        Spacer(Modifier.width(14.dp))
+                        Text(
+                            displayNote.ifBlank { "备注（可不填）" },
+                            fontSize = 15.sp,
+                            color = if (displayNote.isBlank()) muted else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(14.dp))
@@ -237,6 +349,28 @@ private fun DeleteOption(label: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(label, fontSize = 15.sp, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun ScopeChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            color = if (selected) onSurface else muted,
+            maxLines = 1,
+        )
     }
 }
 

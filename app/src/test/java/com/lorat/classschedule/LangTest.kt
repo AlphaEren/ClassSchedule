@@ -50,6 +50,7 @@ class LangTest {
             "Removed the Tue class of “羽毛球”",
             Lang.tr("已删除「羽毛球」在周二的这节课"),
         )
+        assertEquals("Note saved", Lang.tr("备注已保存"))
     }
 
     @Test

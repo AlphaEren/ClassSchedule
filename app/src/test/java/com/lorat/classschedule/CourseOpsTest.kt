@@ -1,13 +1,18 @@
 package com.lorat.classschedule
 
 import com.lorat.classschedule.data.CourseGroup
+import com.lorat.classschedule.data.courseGroups
 import com.lorat.classschedule.data.model.Course
+import com.lorat.classschedule.data.model.Timetable
+import com.lorat.classschedule.data.noteFor
 import com.lorat.classschedule.data.parityLabel
 import com.lorat.classschedule.data.progressText
 import com.lorat.classschedule.data.sectionsText
 import com.lorat.classschedule.data.timeText
 import com.lorat.classschedule.data.weekRanges
 import com.lorat.classschedule.data.weeksText
+import com.lorat.classschedule.data.withGroupNote
+import com.lorat.classschedule.data.withWeekNote
 import com.lorat.classschedule.data.withoutWeek
 import com.lorat.classschedule.data.model.defaultSectionTimes
 import org.junit.Assert.assertEquals
@@ -84,5 +89,32 @@ class CourseOpsTest {
 
         // 全学期、且总周数只剩这一周 → 整段删掉
         assertEquals(emptyList<Course>(), listOf(full).withoutWeek(1, 1))
+    }
+
+    @Test
+    fun `per-week note overrides the course note`() {
+        val slot = Course(
+            "1",
+            "A",
+            dayOfWeek = 1,
+            startSection = 1,
+            endSection = 2,
+            weeks = listOf(5, 6, 7, 8),
+            note = "带书",
+        )
+        val withWeek = listOf(slot).withWeekNote("1", 1, 1, 2, 6, "带电脑")
+        val group = Timetable(courses = withWeek).courseGroups().first()
+        assertEquals("带电脑", group.noteFor(6, 1, 1, 2))
+        assertEquals("带书", group.noteFor(7, 1, 1, 2))
+
+        // 清空某一周 = 这一周显式没有备注，不回落
+        val cleared = listOf(slot).withWeekNote("1", 1, 1, 2, 6, "")
+        assertEquals("", Timetable(courses = cleared).courseGroups().first().noteFor(6, 1, 1, 2))
+
+        // 写「所有周」会覆盖并清掉按周备注
+        val all = withWeek.withGroupNote("1", "全班")
+        val g2 = Timetable(courses = all).courseGroups().first()
+        assertEquals("全班", g2.noteFor(6, 1, 1, 2))
+        assertEquals("全班", g2.noteFor(7, 1, 1, 2))
     }
 }
