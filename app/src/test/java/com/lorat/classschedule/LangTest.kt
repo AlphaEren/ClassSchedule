@@ -29,6 +29,15 @@ class LangTest {
         assertEquals("Periods 3–4", Lang.tr("第3-4节"))
         assertEquals("Deleted “概率论”", Lang.tr("已删除「概率论」"))
         assertEquals("Saved to gallery: a.png", Lang.tr("已保存到相册：a.png"))
+        // 课程详情面板
+        assertEquals("This week", Lang.tr("仅本周"))
+        assertEquals("All weeks", Lang.tr("所有周"))
+        assertEquals("Week 9 only", Lang.tr("仅第 9 周"))
+        assertEquals("Periods 1–2", Lang.tr("第 1 - 2 节"))
+        assertEquals("Note (optional)", Lang.tr("备注（可不填）"))
+        assertEquals("Removed “羽毛球” from week 8", Lang.tr("已删除第 8 周的「羽毛球」"))
+        assertEquals("Credits 3", Lang.tr("学分 3"))
+        assertEquals("copy", Lang.tr("副本"))
     }
 
     @Test

@@ -20,6 +20,9 @@ internal val EN: Map<String, String> = mapOf(
     "备份内容无法识别" to "Unrecognized backup content",
     "备份文件" to "Backup file",
     "备份文件无法识别" to "Unrecognized backup file",
+    "仅本周" to "This week",
+    "所有周" to "All weeks",
+    "副本" to "copy",
     "备注" to "Note",
     "备注（可不填）" to "Note (optional)",
     "边框使用格子颜色" to "Border uses cell color",
@@ -332,6 +335,11 @@ internal val EN_RULES: List<Rule> = listOf(
     Rule(Regex("""时间段 (\d+)""")) { "Time slot ${it.groupValues[1]}" },
     Rule(Regex("""已添课程（(\d+)）""")) { "Courses (${it.groupValues[1]})" },
     Rule(Regex("""导入 \((\d+)\)""")) { "Import (${it.groupValues[1]})" },
+    Rule(Regex("""仅第 (\d+) 周""")) { "Week ${it.groupValues[1]} only" },
+    Rule(Regex("""第 (\d+) - (\d+) 节""")) { "Periods ${it.groupValues[1]}–${it.groupValues[2]}" },
+    Rule(Regex("""已复制「(.+)」""")) { "Duplicated “${it.groupValues[1]}”" },
+    Rule(Regex("""已删除第 (\d+) 周的「(.+)」""")) { "Removed “${it.groupValues[2]}” from week ${it.groupValues[1]}" },
+    Rule(Regex("""学分 (.+)""")) { "Credits ${it.groupValues[1]}" },
     Rule(Regex("""识别结果（(\d+)）""")) { "Result (${it.groupValues[1]})" },
     Rule(Regex("""识别到 (\d+) 门课，确认无误再导入""")) {
         "${it.groupValues[1]} courses found — review before importing"

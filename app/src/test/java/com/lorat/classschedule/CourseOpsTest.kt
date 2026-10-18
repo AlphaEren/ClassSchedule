@@ -8,6 +8,7 @@ import com.lorat.classschedule.data.sectionsText
 import com.lorat.classschedule.data.timeText
 import com.lorat.classschedule.data.weekRanges
 import com.lorat.classschedule.data.weeksText
+import com.lorat.classschedule.data.withoutWeek
 import com.lorat.classschedule.data.model.defaultSectionTimes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -66,5 +67,22 @@ class CourseOpsTest {
         assertEquals("第1-2节", sectionsText(1, 2))
         val times = defaultSectionTimes()
         assertEquals("08:00-09:40", timeText(Course("1", "x", dayOfWeek = 1, startSection = 1, endSection = 2), times))
+    }
+
+    @Test
+    fun `deleting one week keeps the other weeks`() {
+        val full = Course("1", "A", dayOfWeek = 1, startSection = 1, endSection = 2)
+        val afterFull = listOf(full).withoutWeek(6, 10)
+        assertEquals(1, afterFull.size)
+        assertEquals((1..10).filter { it != 6 }, afterFull.first().weeks)
+
+        val onlyWeek6 = full.copy(id = "2", weeks = listOf(6))
+        assertEquals(emptyList<Course>(), listOf(onlyWeek6).withoutWeek(6, 10))
+
+        val multi = full.copy(id = "3", weeks = listOf(5, 6, 7))
+        assertEquals(listOf(5, 7), listOf(multi).withoutWeek(6, 10).first().weeks)
+
+        // 全学期、且总周数只剩这一周 → 整段删掉
+        assertEquals(emptyList<Course>(), listOf(full).withoutWeek(1, 1))
     }
 }

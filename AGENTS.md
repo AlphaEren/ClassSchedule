@@ -14,7 +14,7 @@ $env:JAVA_HOME="C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
 cd <项目根>
 
 .\gradlew.bat :app:assembleDebug --console=plain        # 构建
-.\gradlew.bat :app:testDebugUnitTest --console=plain   # 免模拟器回归：41 个用例
+.\gradlew.bat :app:testDebugUnitTest --console=plain   # 免模拟器回归：42 个用例
 .\gradlew.bat :app:assembleRelease --console=plain     # 发布包（R8 + 资源压缩）
 
 $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"   # 模拟器 AVD: classschedule
@@ -24,7 +24,7 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"   # 模拟器 AVD: clas
 & $adb shell input motionevent DOWN 595 1089; Start-Sleep -Milliseconds 900; & $adb shell input motionevent UP 595 1089  # 长按
 ```
 
-识别逻辑免模拟器回归：`tools/js-harness/README.md`（9 个用例，含脱敏的教务接口响应样例）。
+识别逻辑免模拟器回归：`tools/js-harness/README.md`（10 个用例，含脱敏的教务接口响应样例）。
 
 ## 版本与发布（由 Agent 管理）
 

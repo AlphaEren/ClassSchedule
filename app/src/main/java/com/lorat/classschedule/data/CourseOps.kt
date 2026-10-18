@@ -25,6 +25,17 @@ data class CourseGroup(
     val weeks: List<Int> get() = slots.flatMap { it.weeks }.distinct().sorted()
 }
 
+/** 只删掉某一周的这一次课；去掉后没有剩下任何周的时间段会被丢掉。 */
+fun List<Course>.withoutWeek(week: Int, totalWeeks: Int): List<Course> = mapNotNull { slot ->
+    val weeks = if (slot.weeks.isEmpty()) (1..maxOf(1, totalWeeks)).toList() else slot.weeks
+    val remaining = weeks.filter { it != week }
+    when {
+        remaining.isEmpty() -> null
+        remaining.size == maxOf(1, totalWeeks) -> slot.copy(weeks = emptyList())
+        else -> slot.copy(weeks = remaining)
+    }
+}
+
 /**
  * Collapse the flat course list into one entry per course.
  * Meetings on the same day and section range are folded together, so a course that runs

@@ -108,3 +108,126 @@ fun ChevronRightIcon(tint: Color, size: Dp = 18.dp, modifier: Modifier = Modifie
         line(tint, Offset(0.66f, 0.5f), Offset(0.38f, 0.78f))
     }
 }
+
+/* ---------- 课程详情里的行图标（全部自绘，和顶部图标同一套风格） ---------- */
+
+private fun DrawScope.roundRect(
+    color: Color,
+    left: Float,
+    top: Float,
+    right: Float,
+    bottom: Float,
+    radius: Float = 0.12f,
+) {
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(left * size.width, top * size.height),
+        size = androidx.compose.ui.geometry.Size(
+            (right - left) * size.width,
+            (bottom - top) * size.height,
+        ),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+            radius * size.minDimension,
+            radius * size.minDimension,
+        ),
+        style = Stroke(width = size.minDimension * StrokeWidthFraction),
+    )
+}
+
+/** 日历 — 周次. */
+@Composable
+fun CalendarIcon(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        roundRect(tint, 0.14f, 0.2f, 0.86f, 0.86f, 0.18f)
+        line(tint, Offset(0.14f, 0.38f), Offset(0.86f, 0.38f))
+        line(tint, Offset(0.32f, 0.1f), Offset(0.32f, 0.26f))
+        line(tint, Offset(0.68f, 0.1f), Offset(0.68f, 0.26f))
+    }
+}
+
+/** 时钟 — 节次/时间. */
+@Composable
+fun ClockIcon(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        val stroke = this.size.minDimension * StrokeWidthFraction
+        drawCircle(
+            color = tint,
+            radius = this.size.minDimension / 2f - stroke / 2f - this.size.minDimension * 0.1f,
+            center = Offset(this.size.width / 2f, this.size.height / 2f),
+            style = Stroke(width = stroke),
+        )
+        line(tint, Offset(0.5f, 0.3f), Offset(0.5f, 0.52f))
+        line(tint, Offset(0.5f, 0.52f), Offset(0.68f, 0.62f))
+    }
+}
+
+/** 定位 — 上课地点. */
+@Composable
+fun LocationIcon(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        val stroke = this.size.minDimension * StrokeWidthFraction
+        drawCircle(
+            color = tint,
+            radius = this.size.minDimension * 0.24f,
+            center = Offset(this.size.width * 0.5f, this.size.height * 0.4f),
+            style = Stroke(width = stroke),
+        )
+        line(tint, Offset(0.31f, 0.56f), Offset(0.5f, 0.9f))
+        line(tint, Offset(0.69f, 0.56f), Offset(0.5f, 0.9f))
+    }
+}
+
+/** 人 — 授课老师. */
+@Composable
+fun PersonIcon(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        val stroke = this.size.minDimension * StrokeWidthFraction
+        drawCircle(
+            color = tint,
+            radius = this.size.minDimension * 0.16f,
+            center = Offset(this.size.width * 0.5f, this.size.height * 0.3f),
+            style = Stroke(width = stroke),
+        )
+        drawArc(
+            color = tint,
+            startAngle = 200f,
+            sweepAngle = 140f,
+            useCenter = false,
+            topLeft = Offset(this.size.width * 0.18f, this.size.height * 0.56f),
+            size = androidx.compose.ui.geometry.Size(this.size.width * 0.64f, this.size.height * 0.44f),
+            style = Stroke(width = stroke, cap = StrokeCap.Round),
+        )
+    }
+}
+
+/** 便签 — 备注. */
+@Composable
+fun NoteIcon(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        roundRect(tint, 0.16f, 0.14f, 0.84f, 0.86f, 0.16f)
+        line(tint, Offset(0.3f, 0.38f), Offset(0.7f, 0.38f))
+        line(tint, Offset(0.3f, 0.54f), Offset(0.7f, 0.54f))
+        line(tint, Offset(0.3f, 0.7f), Offset(0.55f, 0.7f))
+    }
+}
+
+/** 复制 — 复制课程. */
+@Composable
+fun CopyIcon(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        roundRect(tint, 0.12f, 0.2f, 0.66f, 0.86f, 0.14f)
+        roundRect(tint, 0.34f, 0.1f, 0.88f, 0.7f, 0.14f)
+    }
+}
+
+/** 垃圾桶 — 删除课程. */
+@Composable
+fun TrashIcon(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        line(tint, Offset(0.16f, 0.25f), Offset(0.84f, 0.25f))
+        line(tint, Offset(0.4f, 0.12f), Offset(0.6f, 0.12f))
+        line(tint, Offset(0.28f, 0.25f), Offset(0.34f, 0.88f))
+        line(tint, Offset(0.72f, 0.25f), Offset(0.66f, 0.88f))
+        line(tint, Offset(0.34f, 0.88f), Offset(0.66f, 0.88f))
+    }
+}

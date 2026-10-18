@@ -9,7 +9,7 @@
 
 ```powershell
 cd C:\Users\Lorat\ClassSchedule\tools\js-harness
-.\cases.ps1                      # 生成 8 个测试页面（改了用例才需要跑）
+.\cases.ps1                      # 生成 10 个测试页面（改了用例才需要跑）
 powershell -ExecutionPolicy Bypass -File .\run.ps1            # 全部
 powershell -ExecutionPolicy Bypass -File .\run.ps1 -filter "b_*"   # 只跑一个
 ```

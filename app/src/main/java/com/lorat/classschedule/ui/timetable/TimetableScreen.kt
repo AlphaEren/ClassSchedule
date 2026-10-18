@@ -132,6 +132,7 @@ import com.lorat.classschedule.data.timeText
 import com.lorat.classschedule.data.weeksText
 import com.lorat.classschedule.data.CourseGroup
 import com.lorat.classschedule.ui.WebViewCompat
+import com.lorat.classschedule.ui.course.CourseDetailSheet
 import com.lorat.classschedule.ui.EmptyTimetableIllustration
 import com.lorat.classschedule.ui.TimetableImage
 import com.lorat.classschedule.ui.argbOrNull
@@ -551,12 +552,36 @@ private fun TimetableScreenContent(
     }
 
     detailCourse?.let { group ->
-        CourseDetailDialog(
+        CourseDetailSheet(
             group = group,
             timetable = timetable,
+            week = week,
+            currentWeek = currentWeek,
+            accent = courseColorFor(
+                group.colorIndex,
+                group.name,
+                autoColorMap(timetable.coursesForWeek(week).map { it.name }),
+            ),
             onDismiss = { detailCourse = null },
             onEdit = { detailCourse = null; onAddCourse(group.key) },
-            onDelete = { detailCourse = null; pendingDelete = group },
+            onDuplicate = {
+                detailCourse = null
+                scope.launch {
+                    repository.duplicateCourseGroup(group.key, " " + Lang.tr("副本"))
+                    snackbarHostState.showSnackbar(Lang.tr("已复制「${group.name}」"))
+                }
+            },
+            onDelete = { onlyThisWeek ->
+                detailCourse = null
+                if (onlyThisWeek) {
+                    scope.launch {
+                        repository.deleteCourseWeek(group.key, week)
+                        snackbarHostState.showSnackbar(Lang.tr("已删除第 $week 周的「${group.name}」"))
+                    }
+                } else {
+                    pendingDelete = group
+                }
+            },
         )
     }
 
@@ -1372,57 +1397,6 @@ private fun CourseActionSheet(
             SheetRow("编辑课程", "修改名称、颜色与时间段", onEdit)
             SheetRow("删除课程", "删除这门课的全部时间段", onDelete)
         }
-    }
-}
-
-@Composable
-private fun CourseDetailDialog(
-    group: CourseGroup,
-    timetable: Timetable,
-    onDismiss: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val currentWeek = currentWeekOf(timetable)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(group.name) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                group.slots.forEach { slot ->
-                    DetailRow("时间", Lang.tr(dayName(slot.dayOfWeek)) + " " + Lang.tr(sectionsText(slot.startSection, slot.endSection)))
-                    if (timetable.appearance.showTime) {
-                        DetailRow("节次时间", timeText(slot, timetable.sectionTimes))
-                    }
-                }
-                DetailRow("周次", group.slots.map { weeksText(it.weeks, timetable.totalWeeks) }.distinct().joinToString(" / "))
-                DetailRow("进度", group.progressText(currentWeek, timetable.totalWeeks))
-                if (group.teacher.isNotBlank()) DetailRow("教师", group.teacher)
-                if (group.location.isNotBlank()) DetailRow("地点", group.location)
-                if (group.credit.isNotBlank()) DetailRow("学分", group.credit)
-                if (group.note.isNotBlank()) DetailRow("备注", group.note)
-            }
-        },
-        confirmButton = { TextButton(onClick = onEdit) { Text("编辑") } },
-        dismissButton = {
-            Row {
-                TextButton(onClick = onDelete) { Text("删除") }
-                TextButton(onClick = onDismiss) { Text("关闭") }
-            }
-        },
-    )
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Row {
-        Text(
-            label,
-            modifier = Modifier.width(60.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 13.sp,
-        )
-        Text(value, fontSize = 13.sp)
     }
 }
 

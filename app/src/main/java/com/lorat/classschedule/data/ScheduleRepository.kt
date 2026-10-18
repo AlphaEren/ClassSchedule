@@ -168,6 +168,28 @@ class ScheduleRepository(context: Context) {
         save(current.copy(courses = current.courses.filterNot { it.groupKey == key }))
     }
 
+    /** 只删掉某一周的这一次课，其余周次保留（全学期的课会展开成显式周次）。 */
+    suspend fun deleteCourseWeek(key: String, week: Int) {
+        val current = _timetable.value
+        val slots = current.courses.filter { it.groupKey == key }
+        if (slots.isEmpty()) return
+        val kept = slots.withoutWeek(week, current.totalWeeks)
+        save(current.copy(courses = current.courses.filterNot { it.groupKey == key } + kept))
+    }
+
+    /** 复制整门课，名字后面加 [nameSuffix]，方便再改到别的时间。 */
+    suspend fun duplicateCourseGroup(key: String, nameSuffix: String): Boolean {
+        val current = _timetable.value
+        val slots = current.courses.filter { it.groupKey == key }
+        if (slots.isEmpty()) return false
+        val group = UUID.randomUUID().toString()
+        val copies = slots.mapIndexed { index, slot ->
+            slot.copy(id = "$group-$index", groupId = group, name = slot.name + nameSuffix)
+        }
+        save(current.copy(courses = current.courses + copies))
+        return true
+    }
+
     suspend fun loadDemo() = save(demoTimetable())
 
     /** Wholesale replacement, used by 导入备份文件. */
