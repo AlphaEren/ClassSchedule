@@ -414,6 +414,7 @@ private fun systemLabel(system: String): String = when (system) {
     "zf" -> "正方 / URP"
     "jwglxt" -> "正方教务（新版）"
     "qz" -> "强智教务"
+    "kbpro" -> "课表系统（kbpro）"
     else -> "未识别"
 }
 

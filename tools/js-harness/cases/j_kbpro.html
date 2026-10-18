@@ -1,0 +1,31 @@
+<div id="shell">kbpro 课表接口样例</div>
+<script>
+// 教务「课表 SPA」：getSchedulejson 返回课程数组，weekDescription 是周次位图；
+// scheduleInfo 给开学日期与当前周。数据已脱敏（示例课程/张老师/A101）。
+var info = {
+  termName: "2026-2027第一学期",
+  schoolStartTime: "2026-08-24",
+  schoolEndTime: "2027-01-17",
+  weekNum: 8,
+  dateList: Array.from({length: 25}, function(_, i){ return {beginDate: "", endDate: "", weekOrder: "" + i}; })
+};
+var schedule = [
+  {courseName: "示例课程A", teacherName: "张老师", classroomName: "A101", dayOfWeek: "1",
+   beginSection: "1", endSection: "2", beginTime: "08:30", endTime: "09:55",
+   weekDescription: "0000011110000000000000000"},
+  {courseName: "示例课程B", teacherName: "李老师", classroomName: "B202", dayOfWeek: "2",
+   beginSection: "6", endSection: "7", beginTime: "13:40", endTime: "15:05",
+   weekDescription: "0000000001111000000000000"},
+  {courseName: "示例课程C", teacherName: "王老师", classroomName: "C303", dayOfWeek: "5",
+   beginSection: "8", endSection: "9", beginTime: "15:20", endTime: "16:45",
+   weekDescription: "1111111111111111111000000"},
+  {courseName: "示例课程D", teacherName: "赵老师", classroomName: "D404", dayOfWeek: "3",
+   beginSection: "10", endSection: "11", beginTime: "18:00", endTime: "19:25",
+   weekDescription: "0000000000110000000000000"}
+];
+window.__kbNet = [
+  {u: "/Schedule/scheduleInfo", m: "GET", b: "", r: JSON.stringify(info)},
+  {u: "/Schedule/getSchedulejson", m: "GET", b: "", r: JSON.stringify(schedule)}
+];
+document.getElementById("shell").textContent = "kbpro fixtures ready";
+</script>

@@ -29,6 +29,7 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1 -filter "b_*"   # 只跑一�
 | `g_multi` | 一个格子两门课 + rowspan 跨行 | box，拆成 3 门 |
 | `h_xhr` | DOM 里没有课表，课程来自 XHR 返回的 JSON | mode=**net**，6 门，认 `jcs:"0102"` / `jcs:[7,8]` / `zcd:"1-16"` |
 | `i_exesac` | **真实**教务处 SaaS 页面（示例大学）：DOM 只有一个空 table，数据来自 `TimeTableHandler.ashx` | mode=net，**52 门**，节次跨两节（1-2/3-4/5-6/9-10），含单周 1-13、双周 2-12、多段周次；`sections=10`、`sourceCurrentWeek=6`、`semesterStart=2026-09-07` |
+| `j_kbpro` | kbpro 课表 SPA：`getSchedulejson` 的 `weekDescription` 周次位图 + `scheduleInfo` 的开学日期/当前周 | mode=net，4 门；周次按位图（第 0 位是开学前那周，**不能**整体偏移一周）；`sections=11`（08:30-09:10 … 18:45-19:25）、`sourceCurrentWeek=8`、`semesterStart=2026-08-24`、`lastTeachingWeek=24` |
 
 > `i_exesac` 里的 JSON 是从教务接口抓下来后**脱敏**（校名、教师姓名、楼名、教室号全部替换成占位，
 > 课程名与结构保持原样），所以它同时是「这套系统长什么样」的档案：`ClassTimePatterns` 用 5 分钟为单位的

@@ -125,6 +125,7 @@ internal val EN: Map<String, String> = mapOf(
     "其它" to "Other",
     "浅色" to "Light",
     "强智教务" to "Qiangzhi",
+    "课表系统（kbpro）" to "Timetable API (kbpro)",
     "清空" to "Clear",
     "清空本地课表" to "Clear local timetable",
     "请登录并打开课表页面，再点击「识别课表」" to "Log in, open the timetable page, then tap “Detect timetable”",

@@ -202,7 +202,7 @@ object TimetableExtractor {
 
     /** Prefer structured courses the page exposed; otherwise rebuild them from the grid. */
     fun coursesFrom(result: ScrapeResult, totalWeeks: Int): List<Course> {
-        val limit = maxOf(totalWeeks, 1)
+        val limit = maxOf(totalWeeks, result.weekCount, 1)
         if (result.courses.isNotEmpty()) {
             return result.courses
                 .filter { it.name.length >= 2 && it.dayOfWeek in 1..7 && it.startSection in 1..24 }
@@ -721,6 +721,77 @@ function exesacTry(ds,recs){
   }
   return null;
 }
+/* ---------- kbpro 课表系统（kbpro.*.edu.cn 这类 SPA） ----------
+   getSchedulejson: [{courseName, teacherName, classroomName, dayOfWeek,
+                      beginSection, endSection, beginTime, endTime,
+                      weekDescription:"0000011110000000000000000"}]
+   weekDescription 第 i 位 = 第 i 周（第 0 位是开学前那一周，忽略）；
+   scheduleInfo: {schoolStartTime, weekNum, dateList:[{weekOrder}]}。 */
+function kbMin(t){ var m=(''+t).match(/^(\d{1,2}):(\d{2})/); if(!m) return -1; return (+m[1])*60+(+m[2]); }
+function kbClock(v){
+  if(!(v>=0)) return '';
+  var h=Math.floor(v/60), mi=Math.round(v-h*60);
+  if(mi>=60){ h++; mi-=60; }
+  return (h<10?'0':'')+h+':'+(mi<10?'0':'')+mi;
+}
+function kbproTry(recs){
+  if(!recs) return null;
+  var list=null,sched=null,i,j,t;
+  for(i=0;i<recs.length;i++){
+    t=recs[i].r; if(!t||t.length<40) continue;
+    var v=null; try{ v=JSON.parse(t); }catch(e){ continue; }
+    if(v&&v.length&&v[0]&&v[0].weekDescription){ if(!list||v.length>list.length) list=v; }
+    if(v&&v.dateList&&!v.length) sched=v;
+  }
+  if(!list||list.length<2) return null;
+  var out=[],maxSec=0,starts={},ends={};
+  for(i=0;i<list.length;i++){
+    var o=list[i]; if(!o) continue;
+    var name=(''+(o.courseName||'')).trim(); if(name.length<2) continue;
+    var d=parseInt(o.dayOfWeek,10); if(!(d>=1&&d<=7)) continue;
+    var s=parseInt(o.beginSection,10), e=parseInt(o.endSection,10);
+    if(!(s>=1)) continue; if(!(e>=s)) e=s;
+    var mask=(''+(o.weekDescription||'')), weeks=[];
+    for(j=1;j<mask.length;j++){ if(mask.charAt(j)==='1') weeks.push(j); }
+    var room=(''+(o.classroomName||o.buildingName||'')).trim();
+    out.push({n:name.substring(0,40),t:(''+(o.teacherName||'')).trim(),r:room,d:d,s:s,e:e,w:weeks});
+    if(e>maxSec) maxSec=e;
+    var b=kbMin(o.beginTime), en=kbMin(o.endTime);
+    // 只用「两节连上」的课推节次时间：有的实践课一次占 1-8 节，会把这个推导带偏。
+    // 85 分钟 / 2 节 = 每节 40 分钟 + 课间 5 分钟。
+    if(b>=0&&en>b&&(e-s+1)<=2){
+      var cnt=e-s+1, gap=(cnt>1?5:0), dur=(en-b-(cnt-1)*gap)/cnt;
+      if(dur>0) for(j=0;j<cnt;j++){
+        var sec=s+j, a=b+j*(dur+gap), z=a+dur;
+        if(starts[sec]===undefined||a<starts[sec]) starts[sec]=a;
+        if(ends[sec]===undefined||z>ends[sec]) ends[sec]=z;
+      }
+    }
+  }
+  if(out.length<2) return null;
+  var patterns=[],lastEnd=-1;
+  for(i=1;i<=maxSec;i++){
+    var a1=(starts[i]===undefined)?lastEnd:starts[i];
+    var z1=(ends[i]===undefined)?-1:ends[i];
+    if(z1<0){
+      var nxt=-1;
+      for(j=i+1;j<=maxSec;j++){ if(starts[j]!==undefined){ nxt=starts[j]; break; } }
+      z1=(nxt>a1)?nxt:a1+45;
+    }
+    patterns.push({s:kbClock(a1),e:kbClock(z1)});
+    lastEnd=z1;
+  }
+  var totalWeeks=0,start='',week=0;
+  if(sched){
+    start=(''+(sched.schoolStartTime||'')).substring(0,10);
+    week=parseInt(sched.weekNum,10)||0;
+    if(sched.dateList) for(i=0;i<sched.dateList.length;i++){
+      var wo=parseInt(sched.dateList[i].weekOrder,10)||0;
+      if(wo>totalWeeks) totalWeeks=wo;
+    }
+  }
+  return {courses:out,patterns:patterns,week:week,start:start,totalWeeks:totalWeeks};
+}
 function dataTry(ds,recs){
   var S={best:0,arr:null,src:''};
   for(var d=0;d<ds.length;d++){
@@ -1215,6 +1286,11 @@ try{
   if(ex&&ex.courses.length>=2){
     log.push('exesac='+ex.courses.length+' weeks='+ex.totalWeeks+' cur='+ex.week+' start='+ex.start+' secs='+ex.patterns.length);
     return JSON.stringify({ok:true,mode:'net',system:'saas',preset:eff,diagnostics:log.join('; '),title:document.title||'',url:location.href,foundUrl:location.href,courses:ex.courses,st:ex.patterns,week:ex.week,start:ex.start,weeks:ex.totalWeeks});
+  }
+  var kp=null; try{ kp=kbproTry(recs); }catch(e){ log.push('kbpro-err'); }
+  if(kp&&kp.courses.length>=2){
+    log.push('kbpro='+kp.courses.length+' weeks='+kp.totalWeeks+' cur='+kp.week+' start='+kp.start+' secs='+kp.patterns.length);
+    return JSON.stringify({ok:true,mode:'net',system:'kbpro',preset:eff,diagnostics:log.join('; '),title:document.title||'',url:location.href,foundUrl:location.href,courses:kp.courses,st:kp.patterns,week:kp.week,start:kp.start,weeks:kp.totalWeeks});
   }
   var data=null; try{ data=dataTry(dsAll,recs); }catch(e){ log.push('data-err'); }
   if(data&&data.courses.length>=2){
