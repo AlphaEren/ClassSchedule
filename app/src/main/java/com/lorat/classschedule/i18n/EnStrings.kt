@@ -1,5 +1,10 @@
 package com.lorat.classschedule.i18n
 
+private val EN_DAYS: Map<String, String> = mapOf(
+    "周一" to "Mon", "周二" to "Tue", "周三" to "Wed", "周四" to "Thu",
+    "周五" to "Fri", "周六" to "Sat", "周日" to "Sun",
+)
+
 /** English copy, keyed by the Chinese text that appears in the UI. */
 internal val EN: Map<String, String> = mapOf(
     "「追加」保留现有课程，只补充识别到的；「覆盖导入」用识别结果替换全部课程。" to "“Append” keeps existing courses and only adds the recognized ones; “Replace” replaces every course with the result.",
@@ -22,6 +27,8 @@ internal val EN: Map<String, String> = mapOf(
     "备份文件无法识别" to "Unrecognized backup file",
     "仅本周" to "This week",
     "所有周" to "All weeks",
+    "选择删除范围，请三思 🥺" to "Choose what to delete — think twice 🥺",
+    "这门课程的全部时间段" to "All time slots of this course",
     "副本" to "copy",
     "备注" to "Note",
     "备注（可不填）" to "Note (optional)",
@@ -336,8 +343,18 @@ internal val EN_RULES: List<Rule> = listOf(
     Rule(Regex("""已添课程（(\d+)）""")) { "Courses (${it.groupValues[1]})" },
     Rule(Regex("""导入 \((\d+)\)""")) { "Import (${it.groupValues[1]})" },
     Rule(Regex("""仅第 (\d+) 周""")) { "Week ${it.groupValues[1]} only" },
+    Rule(Regex("""仅第 (\d+) 周(.+)的这节课""")) {
+        "Week ${it.groupValues[1]} ${EN_DAYS[it.groupValues[2]] ?: it.groupValues[2]} only"
+    },
+    Rule(Regex("""全部(.+)同老师同地点的这节课""")) {
+        "All ${EN_DAYS[it.groupValues[1]] ?: it.groupValues[1]} classes at this time"
+    },
     Rule(Regex("""第 (\d+) - (\d+) 节""")) { "Periods ${it.groupValues[1]}–${it.groupValues[2]}" },
     Rule(Regex("""已复制「(.+)」""")) { "Duplicated “${it.groupValues[1]}”" },
+    Rule(Regex("""已删除第 (\d+) 周「(.+)」的这节课""")) { "Removed “${it.groupValues[2]}” from week ${it.groupValues[1]}" },
+    Rule(Regex("""已删除「(.+)」在(.+)的这节课""")) {
+        "Removed the ${EN_DAYS[it.groupValues[2]] ?: it.groupValues[2]} class of “${it.groupValues[1]}”"
+    },
     Rule(Regex("""已删除第 (\d+) 周的「(.+)」""")) { "Removed “${it.groupValues[2]}” from week ${it.groupValues[1]}" },
     Rule(Regex("""学分 (.+)""")) { "Credits ${it.groupValues[1]}" },
     Rule(Regex("""识别结果（(\d+)）""")) { "Result (${it.groupValues[1]})" },

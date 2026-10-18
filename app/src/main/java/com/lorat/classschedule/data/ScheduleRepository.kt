@@ -168,26 +168,39 @@ class ScheduleRepository(context: Context) {
         save(current.copy(courses = current.courses.filterNot { it.groupKey == key }))
     }
 
-    /** 只删掉某一周的这一次课，其余周次保留（全学期的课会展开成显式周次）。 */
-    suspend fun deleteCourseWeek(key: String, week: Int) {
+    /** 只删掉「某天某节」这一周的一次课，其余周次和其它时间段都保留。 */
+    suspend fun deleteSlotWeek(key: String, day: Int, start: Int, end: Int, week: Int) {
         val current = _timetable.value
-        val slots = current.courses.filter { it.groupKey == key }
-        if (slots.isEmpty()) return
-        val kept = slots.withoutWeek(week, current.totalWeeks)
-        save(current.copy(courses = current.courses.filterNot { it.groupKey == key } + kept))
+        val match = { c: Course -> c.groupKey == key && c.dayOfWeek == day && c.startSection == start && c.endSection == end }
+        val targets = current.courses.filter(match)
+        if (targets.isEmpty()) return
+        val kept = targets.withoutWeek(week, current.totalWeeks)
+        save(current.copy(courses = current.courses.filterNot(match) + kept))
     }
 
-    /** 复制整门课，名字后面加 [nameSuffix]，方便再改到别的时间。 */
-    suspend fun duplicateCourseGroup(key: String, nameSuffix: String): Boolean {
+    /** 删掉「某天某节」这个时间段的全部周次，同一门课的其它时间段保留。 */
+    suspend fun deleteCourseSlot(key: String, day: Int, start: Int, end: Int) {
+        val current = _timetable.value
+        save(
+            current.copy(
+                courses = current.courses.filterNot {
+                    it.groupKey == key && it.dayOfWeek == day && it.startSection == start && it.endSection == end
+                },
+            ),
+        )
+    }
+
+    /** 复制整门课，名字后面加 [nameSuffix]，返回新分组的 key（方便直接打开编辑）。 */
+    suspend fun duplicateCourseGroup(key: String, nameSuffix: String): String? {
         val current = _timetable.value
         val slots = current.courses.filter { it.groupKey == key }
-        if (slots.isEmpty()) return false
+        if (slots.isEmpty()) return null
         val group = UUID.randomUUID().toString()
         val copies = slots.mapIndexed { index, slot ->
             slot.copy(id = "$group-$index", groupId = group, name = slot.name + nameSuffix)
         }
         save(current.copy(courses = current.courses + copies))
-        return true
+        return group
     }
 
     suspend fun loadDemo() = save(demoTimetable())

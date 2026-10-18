@@ -133,6 +133,7 @@ import com.lorat.classschedule.data.weeksText
 import com.lorat.classschedule.data.CourseGroup
 import com.lorat.classschedule.ui.WebViewCompat
 import com.lorat.classschedule.ui.course.CourseDetailSheet
+import com.lorat.classschedule.ui.course.DeleteScope
 import com.lorat.classschedule.ui.EmptyTimetableIllustration
 import com.lorat.classschedule.ui.TimetableImage
 import com.lorat.classschedule.ui.argbOrNull
@@ -223,7 +224,7 @@ private fun TimetableScreenContent(
     var selectedWeek by rememberSaveable { mutableStateOf(1) }
     var silentUpdating by remember { mutableStateOf(false) }
     var updateFailed by remember { mutableStateOf(false) }
-    var detailCourse by remember { mutableStateOf<CourseGroup?>(null) }
+    var detailTarget by remember { mutableStateOf<Pair<CourseGroup, Course>?>(null) }
     var actionCourse by remember { mutableStateOf<CourseGroup?>(null) }
     var showWeekPicker by remember { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
@@ -453,7 +454,7 @@ private fun TimetableScreenContent(
                             selectedWeek = target
                         }
                     },
-                    onCourseClick = { detailCourse = it },
+                    onCourseClick = { group, slot -> detailTarget = group to slot },
                     onCourseLongClick = { actionCourse = it },
                     onEmptyLongPress = { day, section -> onAddCourseAt(day, section) },
                     modifier = Modifier.fillMaxSize(),
@@ -547,39 +548,49 @@ private fun TimetableScreenContent(
             onDismiss = { actionCourse = null },
             onEdit = { actionCourse = null; onAddCourse(group.key) },
             onDelete = { actionCourse = null; pendingDelete = group },
-            onDetail = { actionCourse = null; detailCourse = group },
+            onDetail = { actionCourse = null; group.slots.firstOrNull()?.let { detailTarget = group to it } },
         )
     }
 
-    detailCourse?.let { group ->
+    detailTarget?.let { (group, slot) ->
         CourseDetailSheet(
             group = group,
+            slot = slot,
             timetable = timetable,
             week = week,
-            currentWeek = currentWeek,
             accent = courseColorFor(
                 group.colorIndex,
                 group.name,
                 autoColorMap(timetable.coursesForWeek(week).map { it.name }),
             ),
-            onDismiss = { detailCourse = null },
-            onEdit = { detailCourse = null; onAddCourse(group.key) },
+            onDismiss = { detailTarget = null },
+            onEdit = { detailTarget = null; onAddCourse(group.key) },
             onDuplicate = {
-                detailCourse = null
+                detailTarget = null
                 scope.launch {
-                    repository.duplicateCourseGroup(group.key, " " + Lang.tr("副本"))
+                    val newKey = repository.duplicateCourseGroup(group.key, " " + Lang.tr("副本"))
                     snackbarHostState.showSnackbar(Lang.tr("已复制「${group.name}」"))
+                    if (newKey != null) onAddCourse(newKey)
                 }
             },
-            onDelete = { onlyThisWeek ->
-                detailCourse = null
-                if (onlyThisWeek) {
-                    scope.launch {
-                        repository.deleteCourseWeek(group.key, week)
-                        snackbarHostState.showSnackbar(Lang.tr("已删除第 $week 周的「${group.name}」"))
+            onDelete = { range ->
+                detailTarget = null
+                scope.launch {
+                    val message = when (range) {
+                        DeleteScope.WEEK -> {
+                            repository.deleteSlotWeek(group.key, slot.dayOfWeek, slot.startSection, slot.endSection, week)
+                            Lang.tr("已删除第 $week 周「${group.name}」的这节课")
+                        }
+                        DeleteScope.SLOT -> {
+                            repository.deleteCourseSlot(group.key, slot.dayOfWeek, slot.startSection, slot.endSection)
+                            Lang.tr("已删除「${group.name}」在${dayName(slot.dayOfWeek)}的这节课")
+                        }
+                        DeleteScope.COURSE -> {
+                            repository.deleteCourseGroup(group.key)
+                            Lang.tr("已删除「${group.name}」")
+                        }
                     }
-                } else {
-                    pendingDelete = group
+                    snackbarHostState.showSnackbar(message)
                 }
             },
         )
@@ -795,7 +806,7 @@ private fun TimetableGrid(
     today: LocalDate,
     scrollState: ScrollState,
     onWeekChange: (Int) -> Unit,
-    onCourseClick: (CourseGroup) -> Unit,
+    onCourseClick: (CourseGroup, Course) -> Unit,
     onCourseLongClick: (CourseGroup) -> Unit,
     onEmptyLongPress: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -879,7 +890,7 @@ private fun WeekPage(
     todayCol: Int,
     lineColor: Color,
     primary: Color,
-    onCourseClick: (CourseGroup) -> Unit,
+    onCourseClick: (CourseGroup, Course) -> Unit,
     onCourseLongClick: (CourseGroup) -> Unit,
     onEmptyLongPress: (Int, Int) -> Unit,
 ) {
@@ -951,7 +962,7 @@ private fun WeekPage(
                     span = p.course.endSection - p.course.startSection + 1,
                     totalWeeks = maxOf(1, timetable.totalWeeks),
                     sectionTimes = timetable.sectionTimes,
-                    onClick = { onCourseClick(group) },
+                    onClick = { onCourseClick(group, p.course) },
                     onLongClick = { onCourseLongClick(group) },
                     autoColors = autoColors,
                 )
