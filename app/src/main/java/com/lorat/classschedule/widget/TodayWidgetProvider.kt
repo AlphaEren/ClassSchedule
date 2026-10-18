@@ -16,6 +16,7 @@ import com.lorat.classschedule.data.model.Course
 import com.lorat.classschedule.data.model.Timetable
 import com.lorat.classschedule.data.parityLabel
 import com.lorat.classschedule.data.timeText
+import com.lorat.classschedule.i18n.Lang
 import com.lorat.classschedule.ui.autoColorMap
 import com.lorat.classschedule.ui.courseColorFor
 import kotlinx.serialization.json.Json
@@ -99,18 +100,19 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
         private fun buildViews(context: Context, timetable: Timetable): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_today)
+            Lang.mode = timetable.appearance.language
             val today = LocalDate.now()
             val week = currentWeekOf(timetable)
-            val title = if (timetable.semesterName.isBlank()) "今日课程" else timetable.semesterName
+            val title = if (timetable.semesterName.isBlank()) Lang.tr("今日课程") else timetable.semesterName
             views.setTextViewText(
                 R.id.widget_title,
-                "$title · ${today.monthValue}/${today.dayOfMonth} ${dayName(today.dayOfWeek.value)} · 第 $week 周",
+                "$title · ${today.monthValue}/${today.dayOfMonth} ${Lang.tr(dayName(today.dayOfWeek.value))} · ${Lang.tr("第 $week 周")}",
             )
 
             val mine = WidgetData.todayCourses(timetable, today)
             if (mine.isEmpty()) {
                 views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-                views.setTextViewText(R.id.widget_empty, "今天没有课，好好休息 🎉")
+                views.setTextViewText(R.id.widget_empty, Lang.tr("今天没有课，好好休息 🎉"))
             } else {
                 views.setViewVisibility(R.id.widget_empty, View.GONE)
             }
@@ -124,7 +126,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 }
                 views.setViewVisibility(RowIds[index], View.VISIBLE)
                 views.setTextViewText(NameIds[index], course.name)
-                views.setTextViewText(MetaIds[index], WidgetData.metaOf(course, timetable))
+                views.setTextViewText(MetaIds[index], WidgetData.metaOf(course, timetable, Lang::tr))
                 views.setTextViewText(TimeIds[index], timeText(course, timetable.sectionTimes))
                 views.setInt(BarIds[index], "setBackgroundColor", courseColorFor(course.colorIndex, course.name, autoColors).toArgb())
             }
@@ -159,11 +161,11 @@ internal object WidgetData {
             .sortedBy { it.startSection }
     }
 
-    fun metaOf(course: Course, timetable: Timetable): String {
+    fun metaOf(course: Course, timetable: Timetable, renderParity: (String) -> String = { it }): String {
         val parts = mutableListOf<String>()
         if (course.location.isNotBlank()) parts.add("@${course.location}")
         if (course.teacher.isNotBlank()) parts.add(course.teacher)
-        parityLabel(course.weeks, timetable.totalWeeks)?.let { parts.add(it) }
+        parityLabel(course.weeks, timetable.totalWeeks)?.let { parts.add(renderParity(it)) }
         return parts.joinToString(" ")
     }
 }

@@ -14,7 +14,7 @@ $env:JAVA_HOME="C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
 cd <项目根>
 
 .\gradlew.bat :app:assembleDebug --console=plain        # 构建
-.\gradlew.bat :app:testDebugUnitTest --console=plain   # 免模拟器回归：25 个用例
+.\gradlew.bat :app:testDebugUnitTest --console=plain   # 免模拟器回归：41 个用例
 .\gradlew.bat :app:assembleRelease --console=plain     # 发布包（R8 + 资源压缩）
 
 $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"   # 模拟器 AVD: classschedule
@@ -25,6 +25,20 @@ $adb="C:\Users\Lorat\Android\Sdk\platform-tools\adb.exe"   # 模拟器 AVD: clas
 ```
 
 识别逻辑免模拟器回归：`tools/js-harness/README.md`（9 个用例，含脱敏的教务接口响应样例）。
+
+## 版本与发布（由 Agent 管理）
+
+版本号由 Agent 负责命名，规则固定下来：
+
+- **语义化 `MAJOR.MINOR.PATCH`**，1.0 之前一律 `0.x.y`：
+  - `MINOR`：一个功能批次（例如 0.3.0 = 分享长图 + English + 顶栏收起）；
+  - `PATCH`：只修 bug / 文案 / 性能，例如 `0.3.1`；
+  - `MAJOR`：1.0 起出现破坏性数据或 UI 大改才动。
+- **`versionCode` 每次发布 +1**（等于第几个发布），与 tag 顺序一致；现在 0.3.0 / versionCode 3。
+- 改版本只改 `app/build.gradle.kts` 的 `versionCode` / `versionName`；关于页从 `PackageManager` 读，不用改。
+- 发布流程：单测 + release 装机自测 → 改版本号 → 更新 `PROGRESS.md` → commit（中文）→
+  `git tag vX.Y.Z` → push（分支 + tag）→ `gh release create vX.Y.Z app/build/outputs/apk/release/app-release.apk --title vX.Y.Z --notes ...`
+- Release 正文用中文，按「新增 / 优化 / 修复」分组；APK 只含 `arm64-v8a` + `x86_64`。
 
 ## 约定
 

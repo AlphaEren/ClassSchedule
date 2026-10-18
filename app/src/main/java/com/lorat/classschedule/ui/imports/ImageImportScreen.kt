@@ -28,7 +28,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
+import com.lorat.classschedule.i18n.Lang
+import com.lorat.classschedule.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -209,7 +210,8 @@ fun ImageImportScreen(    repository: ScheduleRepository,
                         Text("识别结果（${parsed.size}）", fontWeight = FontWeight.SemiBold)
                         parsed.forEach { course ->
                             Text(
-                                "${dayName(course.dayOfWeek)} ${sectionsText(course.startSection, course.endSection)}  " +
+                                Lang.tr(dayName(course.dayOfWeek)) + " " +
+                                    Lang.tr(sectionsText(course.startSection, course.endSection)) + "  " +
                                     course.name +
                                     if (course.teacher.isNotBlank()) "  ${course.teacher}" else "" +
                                         if (course.location.isNotBlank()) "  @${course.location}" else "",
@@ -223,7 +225,7 @@ fun ImageImportScreen(    repository: ScheduleRepository,
                         onClick = {
                             scope.launch {
                                 repository.applyImport(courses = timetable.courses + parsed)
-                                snackbar.showSnackbar("已追加 ${parsed.size} 个课程格子")
+                                snackbar.showSnackbar(Lang.tr("已追加 ${parsed.size} 个课程格子"))
                                 onBack()
                             }
                         },
@@ -233,7 +235,7 @@ fun ImageImportScreen(    repository: ScheduleRepository,
                         onClick = {
                             scope.launch {
                                 repository.applyImport(courses = parsed)
-                                snackbar.showSnackbar("已导入 ${parsed.size} 个课程格子")
+                                snackbar.showSnackbar(Lang.tr("已导入 ${parsed.size} 个课程格子"))
                                 onBack()
                             }
                         },

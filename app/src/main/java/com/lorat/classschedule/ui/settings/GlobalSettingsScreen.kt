@@ -13,7 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.lorat.classschedule.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -97,11 +97,15 @@ fun GlobalSettingsScreen(
             }
 
             SettingsCard("其它") {
-                SettingsNavRow(
+                SettingsChoiceRow(
                     title = "语言",
-                    value = "简体中文",
-                    subtitle = "当前版本仅提供简体中文",
-                    onClick = {},
+                    options = listOf(
+                        0 to "跟随系统",
+                        1 to "简体中文",
+                        2 to "English",
+                    ),
+                    selected = appearance.language,
+                    onSelect = { scope.launch { repository.updateAppearance(appearance.copy(language = it)) } },
                 )
                 SettingsNavRow(title = "关于", onClick = onAbout)
             }

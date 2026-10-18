@@ -28,7 +28,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
+import com.lorat.classschedule.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -83,8 +83,7 @@ fun SettingsSwitchRow(
 }
 
 @Composable
-fun SettingsNavRow(title: String, value: String = "", subtitle: String = "", onClick: () -> Unit) {
-    Row(
+fun SettingsNavRow(title: String, value: String = "", subtitle: String = "", onClick: () -> Unit) {    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
@@ -105,6 +104,7 @@ fun SettingsNavRow(title: String, value: String = "", subtitle: String = "", onC
     }
 }
 
+/** 只展示、不可点的行（例如「版本 0.2」）——不再给一个点了没反应的箭头。 */
 @Composable
 fun SettingsSliderRow(
     title: String,

@@ -20,8 +20,8 @@ android {
         applicationId = "com.lorat.classschedule"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3.0"
         // OCR 的 native 库每个 ABI 有 6~11MB：只留手机（arm64）与模拟器（x86_64），
         // 否则 APK 会白白多出 17MB 以上，冷启动也跟着变慢。
         ndk {

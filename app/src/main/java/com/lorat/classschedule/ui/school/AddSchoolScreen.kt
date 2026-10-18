@@ -19,7 +19,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.lorat.classschedule.i18n.Lang
+import com.lorat.classschedule.i18n.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -137,8 +138,8 @@ fun AddSchoolScreen(
             Spacer(Modifier.height(4.dp))
             Text("解析规则", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(
-                "不同学校的教务系统页面结构不一样。不确定选哪个时保持「自动检测」即可："
-                    + "App 会先尝试按表格识别，再尝试按课程方块的位置识别。",
+                Lang.tr("不同学校的教务系统页面结构不一样。不确定选哪个时保持「自动检测」即可：")
+                    + Lang.tr("App 会先尝试按表格识别，再尝试按课程方块的位置识别。"),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

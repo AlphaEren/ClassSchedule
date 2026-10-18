@@ -28,7 +28,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.lorat.classschedule.i18n.Lang
+import com.lorat.classschedule.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -301,8 +302,8 @@ fun WebImportScreen(
                                     if (loadLogs.size > 40) loadLogs.removeAt(0)
                                     loadLogs.add(info)
                                     if (info.contains("\"input\":\"") && !info.contains("\"input\":\"none\"")) {
-                                        pageHint = "已检测到登录表单：在页面里登录后再点「识别课表」。" +
-                                            "若页面空白/点不动，点右上角「浏览器」改用系统浏览器打开。"
+                                        pageHint = Lang.tr("已检测到登录表单：在页面里登录后再点「识别课表」。") +
+                                            Lang.tr("若页面空白/点不动，点右上角「浏览器」改用系统浏览器打开。")
                                     }
                                 },
                                 onConsole = { line ->
@@ -352,8 +353,8 @@ fun WebImportScreen(
                         .sortedWith(compareBy({ it.dayOfWeek }, { it.startSection }))
                         .forEach { c ->
                             Text(
-                                DayNames.getOrElse(c.dayOfWeek - 1) { "?" } +
-                                    " 第${c.startSection}-${c.endSection}节  ${c.name}" +
+                                Lang.tr(DayNames.getOrElse(c.dayOfWeek - 1) { "?" }) +
+                                    " " + Lang.tr("第${c.startSection}-${c.endSection}节") + "  ${c.name}" +
                                     if (c.location.isNotBlank()) "  @${c.location}" else "",
                                 fontSize = 13.sp,
                             )

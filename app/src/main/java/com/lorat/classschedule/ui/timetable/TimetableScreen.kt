@@ -2,8 +2,19 @@
 
 package com.lorat.classschedule.ui.timetable
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.webkit.WebView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -18,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,12 +60,16 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.lorat.classschedule.i18n.Lang
+import com.lorat.classschedule.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,14 +88,25 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lorat.classschedule.data.DayShortNames
@@ -92,6 +119,7 @@ import com.lorat.classschedule.data.dayColumns
 import com.lorat.classschedule.data.dayName
 import com.lorat.classschedule.data.datesOfWeek
 import com.lorat.classschedule.data.gridSectionCount
+import com.lorat.classschedule.data.placement
 import com.lorat.classschedule.data.model.Appearance
 import com.lorat.classschedule.data.model.CellStyle
 import com.lorat.classschedule.data.model.Course
@@ -104,6 +132,8 @@ import com.lorat.classschedule.data.timeText
 import com.lorat.classschedule.data.weeksText
 import com.lorat.classschedule.data.CourseGroup
 import com.lorat.classschedule.ui.WebViewCompat
+import com.lorat.classschedule.ui.EmptyTimetableIllustration
+import com.lorat.classschedule.ui.TimetableImage
 import com.lorat.classschedule.ui.argbOrNull
 import com.lorat.classschedule.ui.autoColorMap
 import com.lorat.classschedule.ui.courseColorFor
@@ -115,9 +145,14 @@ import com.lorat.classschedule.ui.icons.ExportIcon
 import com.lorat.classschedule.ui.icons.ImportIcon
 import com.lorat.classschedule.ui.icons.MoreCircleIcon
 import com.lorat.classschedule.ui.rememberTimetableExporter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 private val AxisWidth = 46.dp
@@ -138,11 +173,50 @@ fun TimetableScreen(
     onManualUpdate: () -> Unit,
     onAbout: () -> Unit,
     modifier: Modifier = Modifier,
+) {
+    // 只有一屏 7 列 + 4 个顶部图标，系统字体调到 1.5x 以上会把网格挤坏：
+    // 主界面限到 1.25x（设置页仍然跟随系统，可滚动）。
+    val density = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(density.density, density.fontScale.coerceIn(0.9f, 1.25f)),
+    ) {
+        TimetableScreenContent(
+            repository = repository,
+            onAddSchool = onAddSchool,
+            onAddCourse = onAddCourse,
+            onAddCourseAt = onAddCourseAt,
+            onOpenScheduleSettings = onOpenScheduleSettings,
+            onOpenGlobalSettings = onOpenGlobalSettings,
+            onOpenCourseList = onOpenCourseList,
+            onOpenSectionTimes = onOpenSectionTimes,
+            onOpenImport = onOpenImport,
+            onManualUpdate = onManualUpdate,
+            onAbout = onAbout,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun TimetableScreenContent(
+    repository: ScheduleRepository,
+    onAddSchool: () -> Unit,
+    onAddCourse: (String?) -> Unit,
+    onAddCourseAt: (Int, Int) -> Unit,
+    onOpenScheduleSettings: () -> Unit,
+    onOpenGlobalSettings: () -> Unit,
+    onOpenCourseList: () -> Unit,
+    onOpenSectionTimes: () -> Unit,
+    onOpenImport: () -> Unit,
+    onManualUpdate: () -> Unit,
+    onAbout: () -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: TimetableViewModel = viewModel { TimetableViewModel(repository) },
 ) {
     val timetable by viewModel.timetable.collectAsStateWithLifecycle()
     val appearance = timetable.appearance
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var followCurrent by rememberSaveable { mutableStateOf(true) }
     var selectedWeek by rememberSaveable { mutableStateOf(1) }
@@ -155,8 +229,52 @@ fun TimetableScreen(
     var showExport by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<CourseGroup?>(null) }
 
-    val today = remember { LocalDate.now() }
-    val currentWeek = remember(timetable) { currentWeekOf(timetable) }
+    // 「保存到相册」：Android 10 起走 MediaStore 不需要权限，9 及以下临时申请存储权限
+    var pendingSave by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val storagePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val action = pendingSave
+        pendingSave = null
+        if (granted) {
+            action?.invoke()
+        } else {
+            scope.launch { snackbarHostState.showSnackbar(Lang.tr("需要存储权限才能保存到相册")) }
+        }
+    }
+    // 保存动作在拿到权限后才真正执行，所以先入队、再申请
+    fun saveImageToGallery(targetWeek: Int) {
+        val snapshot = timetable
+        scope.launch {
+            val name = withContext(Dispatchers.IO) {
+                runCatching { TimetableImage.saveToGallery(context, snapshot, targetWeek) }.getOrNull()
+            }
+            snackbarHostState.showSnackbar(
+                if (name != null) Lang.tr("已保存到相册：$name") else Lang.tr("保存到相册失败"),
+            )
+        }
+    }
+
+    // 日期不能只在首次组合时取一次：进程驻留过夜后，日期栏、当前周、今天高亮都要跟着走。
+    var today by remember { mutableStateOf(LocalDate.now()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) today = LocalDate.now()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    // App 一直开着也不过夜：零点后自己醒一次，不必重启也不用回前台
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = LocalDateTime.now()
+            val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay().plusSeconds(2)
+            delay(Duration.between(now, nextMidnight).toMillis().coerceIn(1_000L, 86_400_000L))
+            today = LocalDate.now()
+        }
+    }
+    val currentWeek = remember(timetable, today) { currentWeekOf(timetable, today) }
     val totalWeeks = maxOf(1, timetable.totalWeeks)
     val groupCount = remember(timetable.courses) { timetable.courseGroups().size }
     val week = if (followCurrent) currentWeek else selectedWeek.coerceIn(1, totalWeeks)
@@ -169,8 +287,40 @@ fun TimetableScreen(
     }
     val isCurrentWeek = week == currentWeek
 
+    // 横屏时标题区能占掉大半个屏幕：课表上滑就把顶部收起来，往下滑（或滑回顶部）再放回来。
+    // 只按「手指方向 + 累计位移」判断，不看 ScrollState 的数值：顶栏收起会改变可视高度，
+    // 滚动值会被布局变化牵连（到底部时尤其明显），按数值判断会来回弹跳。
+    val gridScroll = rememberScrollState()
+    var topBarVisible by remember { mutableStateOf(true) }
+    val dragAccum = remember { mutableFloatStateOf(0f) }
+    val hideStep = with(LocalDensity.current) { 16.dp.toPx() }
+    val scrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    val current = dragAccum.floatValue
+                    dragAccum.floatValue = if (current * available.y > 0) current + available.y else available.y
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (gridScroll.value == 0) topBarVisible = true
+                return Velocity.Zero
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        snapshotFlow { dragAccum.floatValue }.collect { accumulated ->
+            when {
+                accumulated <= -hideStep && topBarVisible -> topBarVisible = false
+                accumulated >= hideStep && !topBarVisible -> topBarVisible = true
+            }
+        }
+    }
+
     val exportTimetable = rememberTimetableExporter(repository) { message ->
-        scope.launch { snackbarHostState.showSnackbar(message) }
+        scope.launch { snackbarHostState.showSnackbar(Lang.tr(message)) }
     }
 
     // Paint the timetable first, then refresh in the background so opening the app stays instant.
@@ -184,8 +334,8 @@ fun TimetableScreen(
     LaunchedEffect(updateFailed) {
         if (!updateFailed) return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(
-            message = "自动更新失败，课表可能不是最新",
-            actionLabel = "手动更新",
+            message = Lang.tr("自动更新失败，课表可能不是最新"),
+            actionLabel = Lang.tr("手动更新"),
             duration = SnackbarDuration.Long,
         )
         updateFailed = false
@@ -233,32 +383,47 @@ fun TimetableScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .nestedScroll(scrollConnection),
+        ) {
             Box(Modifier.fillMaxWidth().height(2.dp)) {
                 if (silentUpdating) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
-            Header(
-                date = today.format(DateFormatter),
-                week = week,
-                totalWeeks = totalWeeks,
-                isCurrentWeek = isCurrentWeek,
-                subtitle = subtitleOf(timetable),
-                progress = if (timetable.semesterStartDate.isBlank()) {
-                    "未设置开学日期 · 点此说明现在是第几周"
-                } else {
-                    "本周 ${timetable.coursesForWeek(week).size} 节课 · 全学期 $groupCount 门 · 共 $totalWeeks 周"
-                },
-                textOverride = argbOrNull(appearance.uiTextColor),
-                onWeekClick = { showWeekPicker = true },
-                onWeekStep = { delta -> goToWeek(week + delta) },
-                onBackToCurrentWeek = { followCurrent = true },
-                onProgressClick = { showWeekPicker = true },
-                onAddCourse = { onAddCourse(null) },
-                onImport = onOpenImport,
-                onExport = { showExport = true },
-                onMore = { showMore = true },
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            AnimatedVisibility(
+                visible = topBarVisible,
+                enter = expandVertically(expandFrom = Alignment.Top) +
+                    slideInVertically(initialOffsetY = { -it }),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) +
+                    slideOutVertically(targetOffsetY = { -it }),
+            ) {
+                Column {
+                    Header(
+                        date = today.format(DateFormatter),
+                        week = week,
+                        totalWeeks = totalWeeks,
+                        isCurrentWeek = isCurrentWeek,
+                        subtitle = subtitleOf(timetable),
+                        progress = if (timetable.semesterStartDate.isBlank()) {
+                            "未设置开学日期 · 点此说明现在是第几周"
+                        } else {
+                            "本周 ${timetable.coursesForWeek(week).size} 节课 · 全学期 $groupCount 门 · 共 $totalWeeks 周"
+                        },
+                        textOverride = argbOrNull(appearance.uiTextColor),
+                        onWeekClick = { showWeekPicker = true },
+                        onWeekStep = { delta -> goToWeek(week + delta) },
+                        onBackToCurrentWeek = { followCurrent = true },
+                        onProgressClick = { showWeekPicker = true },
+                        onAddCourse = { onAddCourse(null) },
+                        onImport = onOpenImport,
+                        onExport = { showExport = true },
+                        onMore = { showMore = true },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                }
+            }
             DateBar(
                 dates = datesOfWeek(timetable, week, appearance.weekStartSunday)
                     .take(if (appearance.showWeekend) 7 else 5),
@@ -279,6 +444,8 @@ fun TimetableScreen(
                 TimetableGrid(
                     timetable = timetable,
                     week = week,
+                    today = today,
+                    scrollState = gridScroll,
                     onWeekChange = { target ->
                         if (target != week) {
                             followCurrent = target == currentWeek
@@ -308,7 +475,7 @@ fun TimetableScreen(
                 scope.launch {
                     repository.setCurrentWeek(it)
                     followCurrent = true
-                    snackbarHostState.showSnackbar("已将第 $it 周设为当前周")
+                    snackbarHostState.showSnackbar(Lang.tr("已将第 $it 周设为当前周"))
                 }
                 showWeekPicker = false
             },
@@ -337,9 +504,39 @@ fun TimetableScreen(
 
     if (showExport) {
         ExportSheet(
+            week = week,
             onDismiss = { showExport = false },
             onBackup = { showExport = false; exportTimetable(false) },
             onCsv = { showExport = false; exportTimetable(true) },
+            onShare = {
+                showExport = false
+                val snapshot = timetable
+                val targetWeek = week
+                scope.launch {
+                    val ok = withContext(Dispatchers.Default) {
+                        runCatching { TimetableImage.share(context, snapshot, targetWeek) }.getOrDefault(false)
+                    }
+                    snackbarHostState.showSnackbar(
+                        if (ok) Lang.tr("已生成第 $targetWeek 周课表图片") else Lang.tr("生成课表图片失败"),
+                    )
+                }
+            },
+            onSave = {
+                showExport = false
+                val targetWeek = week
+                val action = { saveImageToGallery(targetWeek) }
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    pendingSave = action
+                    storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                } else {
+                    action()
+                }
+            },
         )
     }
 
@@ -372,7 +569,7 @@ fun TimetableScreen(
                 TextButton(onClick = {
                     scope.launch {
                         repository.deleteCourseGroup(group.key)
-                        snackbarHostState.showSnackbar("已删除「${group.name}」")
+                        snackbarHostState.showSnackbar(Lang.tr("已删除「${group.name}」"))
                     }
                     pendingDelete = null
                 }) { Text("删除") }
@@ -516,7 +713,7 @@ private fun DateBar(
     val primary = textOverride ?: MaterialTheme.colorScheme.primary
     val muted = textOverride?.copy(alpha = 0.7f) ?: MaterialTheme.colorScheme.onSurfaceVariant
     val onSurface = textOverride ?: MaterialTheme.colorScheme.onSurface
-    Row(Modifier.fillMaxWidth().height(52.dp)) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp, max = 64.dp)) {
         Column(
             modifier = Modifier.width(AxisWidth).fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -538,10 +735,11 @@ private fun DateBar(
                     DayShortNames.getOrElse(day - 1) { "?" },
                     fontSize = 11.sp,
                     color = if (dim) muted.copy(alpha = 0.45f) else muted,
+                    maxLines = 1,
                 )
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(26.dp)
                         .clip(CircleShape)
                         .background(if (isToday) primary.copy(alpha = 0.15f) else Color.Transparent),
                     contentAlignment = Alignment.Center,
@@ -549,6 +747,7 @@ private fun DateBar(
                     Text(
                         "${date.dayOfMonth}",
                         fontSize = 13.sp,
+                        maxLines = 1,
                         fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                         color = when {
                             isToday -> primary
@@ -564,100 +763,12 @@ private fun DateBar(
 
 /* ------------------------------------------------------------------ 课表网格 */
 
-private data class Placed(
-    val course: Course,
-    val col: Int,
-    val slice: Int,
-    val slices: Int,
-    val thisWeek: Boolean,
-    val conflict: Boolean,
-)
-
-/**
- * Lay out one week of one column.
- *
- * A slot usually holds several records that never actually clash, so:
- *  1. records of the same course with different 周次 (1-6 周 + 9-10 周) merge into one card;
- *  2. the classes that really run in [week] are drawn first and get the full width;
- *  3. classes of other weeks are only drawn when they do not overlap something already drawn —
- *     otherwise their text would sit on top of this week's class (14-16 周的 1-4 节 vs 1-6 周的 1-2 节);
- *  4. two different classes in the same week are the only case that splits a cell (conflict marker).
- */
-private fun placement(timetable: Timetable, columns: List<Int>, week: Int): List<Placed> {
-    val appearance = timetable.appearance
-    val out = mutableListOf<Placed>()
-    for ((col, day) in columns.withIndex()) {
-        val dayCourses = timetable.courses.filter { it.dayOfWeek == day }
-        val (active, others) = dayCourses.partition { it.matchesWeek(week) }
-        val taken = mutableListOf<IntRange>()
-        // 本周要上的课里，互相重叠的（含部分重叠，例如 1-4 节与 3-4 节）左右平分，避免叠字
-        val groups = mutableListOf<MutableList<Placed>>()
-        for (placed in layOutSlot(active, col, thisWeek = true)) {
-            val range = placed.course.startSection..placed.course.endSection
-            val hit = groups.firstOrNull { group ->
-                group.any { it.course.startSection <= range.last && range.first <= it.course.endSection }
-            }
-            if (hit != null) hit.add(placed) else groups.add(mutableListOf(placed))
-        }
-        for (group in groups) {
-            group.forEachIndexed { index, placed ->
-                out.add(placed.copy(slice = index, slices = group.size, conflict = group.size > 1))
-            }
-        }
-        for (placed in out.filter { it.col == col && it.thisWeek }) {
-            taken.add(placed.course.startSection..placed.course.endSection)
-        }
-        if (appearance.showOtherWeeks) {
-            // 非本周的课：跳过与已画格子重叠的，剩下的每个都能占满整格
-            val survivors = mutableListOf<Course>()
-            for (placed in layOutSlot(others, col, thisWeek = false)) {
-                val range = placed.course.startSection..placed.course.endSection
-                if (taken.any { it.first <= range.last && range.first <= it.last }) continue
-                if (survivors.any { it.startSection <= range.last && range.first <= it.endSection }) continue
-                survivors.add(placed.course)
-                out.add(placed.copy(slice = 0, slices = 1, conflict = false))
-            }
-        }
-    }
-    return out
-}
-
-/** Same section range: one card per course name; different courses split the cell. */
-private fun layOutSlot(courses: List<Course>, col: Int, thisWeek: Boolean): List<Placed> {
-    val bySlot = LinkedHashMap<Pair<Int, Int>, MutableList<Course>>()
-    for (course in courses) {
-        bySlot.getOrPut(course.startSection to course.endSection) { mutableListOf() }.add(course)
-    }
-    val out = mutableListOf<Placed>()
-    for ((_, sameSlot) in bySlot) {
-        val merged = sameSlot.groupBy { it.name }.values.map { records ->
-            val weeks = if (records.any { it.weeks.isEmpty() }) {
-                emptyList()
-            } else {
-                records.flatMap { it.weeks }.distinct().sorted()
-            }
-            records.first().copy(weeks = weeks)
-        }
-        merged.forEachIndexed { index, course ->
-            out.add(
-                Placed(
-                    course = course,
-                    col = col,
-                    slice = index,
-                    slices = merged.size,
-                    thisWeek = thisWeek,
-                    conflict = thisWeek && merged.size > 1,
-                ),
-            )
-        }
-    }
-    return out
-}
-
 @Composable
 private fun TimetableGrid(
     timetable: Timetable,
     week: Int,
+    today: LocalDate,
+    scrollState: ScrollState,
     onWeekChange: (Int) -> Unit,
     onCourseClick: (CourseGroup) -> Unit,
     onCourseLongClick: (CourseGroup) -> Unit,
@@ -670,7 +781,7 @@ private fun TimetableGrid(
     val rowHeight = appearance.cellHeight.dp
     val totalWeeks = maxOf(1, timetable.totalWeeks)
     val groups = remember(timetable.courses) { timetable.courseGroups().associateBy { it.key } }
-    val todayCol = columns.indexOf(LocalDate.now().dayOfWeek.value)
+    val todayCol = columns.indexOf(today.dayOfWeek.value)
     val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (appearance.gridLines) 0.12f else 0f)
     val primary = MaterialTheme.colorScheme.primary
 
@@ -685,7 +796,7 @@ private fun TimetableGrid(
     }
     val swipeThreshold = with(LocalDensity.current) { 48.dp.toPx() }
 
-    Column(modifier.verticalScroll(rememberScrollState())) {
+    Column(modifier.verticalScroll(scrollState)) {
         Row(Modifier.fillMaxWidth()) {
             AxisColumn(timetable = timetable, sections = sections, rowHeight = rowHeight)
             HorizontalPager(
@@ -821,13 +932,21 @@ private fun WeekPage(
                 )
             }
         }
-        if (timetable.courses.isEmpty() && appearance.showEmptyImage) {
-            Box(Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.TopCenter) {
+        if (placed.isEmpty() && appearance.showEmptyImage) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                EmptyTimetableIllustration()
+                Spacer(Modifier.height(12.dp))
+                Text("第 $week 周没有课", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    "还没有课程\n点右上角 ⊕ 手动添加，或 ⤓ 从教务/文件导入",
+                    "左右滑动切换周次，长按空白格子可以加课",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
@@ -918,55 +1037,82 @@ private fun CourseCell(
             )
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 4.dp)) {
-            Text(
-                text = group.name,
-                fontSize = appearance.fontSize.sp,
-                lineHeight = (appearance.fontSize + 2).sp,
-                fontWeight = FontWeight.SemiBold,
-                color = titleText,
-                maxLines = if (span >= 3) 5 else if (span == 2) 3 else 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val metaSize = (appearance.fontSize - 3).coerceAtLeast(7).sp
-            if (appearance.showTime) {
-                val time = timeText(course, sectionTimes)
-                if (time.isNotBlank()) Text(time, fontSize = metaSize, color = metaText, maxLines = 1)
-            }
-            if (appearance.showTeacher && group.teacher.isNotBlank()) {
-                Text(group.teacher, fontSize = metaSize, color = metaText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            if (appearance.showLocation && group.location.isNotBlank()) {
-                Text("@${group.location}", fontSize = metaSize, color = metaText, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            // 标签：带边框的小牌子。非本周用更实的边框保持醒目，单双周淡一点。
+        // 字号跟着格子大小走：窄列/短格子自动缩字，宁可小一点，也别把课程名截成「马克思主…」
+        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 3.dp)) {
+            val innerWidth = maxWidth.value
+            val innerHeight = maxHeight.value
+            val showTimeText = appearance.showTime && timeText(course, sectionTimes).isNotBlank()
+            val showTeacherText = appearance.showTeacher && group.teacher.isNotBlank()
+            val showLocationText = appearance.showLocation && group.location.isNotBlank()
+            val metaCount = listOf(showTimeText, showTeacherText, showLocationText).count { it }
             val marks = buildList {
                 if (!thisWeek) add("非本周")
                 parityLabel(group.weeks, totalWeeks)?.let { add(it) }
             }
-            if (marks.isNotEmpty() && span >= 2) {
-                Spacer(Modifier.weight(1f))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    for (mark in marks) {
-                        val strong = mark == "非本周"
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(titleText.copy(alpha = if (strong) 0.10f else 0f))
-                                .border(
-                                    width = 1.dp,
-                                    color = titleText.copy(alpha = if (strong) 0.65f else 0.28f),
-                                    shape = RoundedCornerShape(4.dp),
+            val showMarks = marks.isNotEmpty() && span >= 2 && innerHeight > 62f
+            val metaFont = (appearance.fontSize - 3).coerceAtLeast(8).toFloat()
+            val locationLines = if (innerHeight >= 100f) 2 else 1
+            val metaReserve = if (metaCount == 0) {
+                0f
+            } else {
+                metaFont * 1.45f * (metaCount + if (showLocationText && locationLines == 2) 1 else 0)
+            }
+            val nameBudget = (innerHeight - metaReserve - if (showMarks) 16f else 0f).coerceAtLeast(12f)
+            val nameFont = fitNameFontSize(group.name, innerWidth, nameBudget, appearance.fontSize.toFloat())
+            val nameLineHeight = nameFont + 1.5f
+            val nameMaxLines = (nameBudget / nameLineHeight).toInt().coerceIn(1, 6)
+
+            Column(Modifier.fillMaxSize()) {
+                Text(
+                    text = group.name,
+                    fontSize = nameFont.sp,
+                    lineHeight = nameLineHeight.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = titleText,
+                    maxLines = nameMaxLines,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val metaSize = metaFont.sp
+                if (showTimeText) {
+                    Text(timeText(course, sectionTimes), fontSize = metaSize, color = metaText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (showTeacherText) {
+                    Text(group.teacher, fontSize = metaSize, color = metaText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (showLocationText) {
+                    Text(
+                        "@${group.location}",
+                        fontSize = metaSize,
+                        color = metaText,
+                        maxLines = locationLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                // 标签：带边框的小牌子。非本周用更实的边框保持醒目，单双周淡一点。
+                if (showMarks) {
+                    Spacer(Modifier.weight(1f))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (mark in marks) {
+                            val strong = mark == "非本周"
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(titleText.copy(alpha = if (strong) 0.10f else 0f))
+                                    .border(
+                                        width = 1.dp,
+                                        color = titleText.copy(alpha = if (strong) 0.65f else 0.28f),
+                                        shape = RoundedCornerShape(4.dp),
+                                    )
+                                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                            ) {
+                                Text(
+                                    mark,
+                                    fontSize = 9.sp,
+                                    color = titleText.copy(alpha = if (strong) 0.95f else 0.7f),
+                                    maxLines = 1,
+                                    softWrap = false,
                                 )
-                                .padding(horizontal = 4.dp, vertical = 1.dp),
-                        ) {
-                            Text(
-                                mark,
-                                fontSize = 9.sp,
-                                color = titleText.copy(alpha = if (strong) 0.95f else 0.7f),
-                                maxLines = 1,
-                                softWrap = false,
-                            )
+                            }
                         }
                     }
                 }
@@ -984,6 +1130,24 @@ private fun CourseCell(
             }
         }
     }
+}
+
+/**
+ * 按格子宽度和可用高度挑一个能放下整门课名的字号（中文按「1 字 ≈ 1 字号」估）。
+ * 实在放不下才缩到 8sp，剩下的交给省略号。
+ */
+private fun fitNameFontSize(name: String, widthDp: Float, heightDp: Float, preferred: Float): Float {
+    if (widthDp <= 0f || name.isEmpty()) return preferred
+    var size = preferred
+    while (size > 8f) {
+        val lineHeight = size + 1.5f
+        val maxLines = (heightDp / lineHeight).toInt().coerceAtLeast(1)
+        val perLine = (widthDp / (size * 1.02f)).toInt().coerceAtLeast(1)
+        val lines = (name.length + perLine - 1) / perLine
+        if (lines <= maxLines) return size
+        size -= 0.5f
+    }
+    return 8f
 }
 
 private fun Modifier.dashedRoundedBorder(
@@ -1132,12 +1296,16 @@ private fun MoreSheet(
                         Column(
                             modifier = Modifier
                                 .weight(1f)
+                                .heightIn(min = 58.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
                                 .combinedClickable(onClick = action)
-                                .padding(vertical = 14.dp),
+                                .padding(horizontal = 4.dp, vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                        ) { Text(label, fontSize = 12.sp) }
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(label, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 2)
+                        }
                     }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -1148,11 +1316,20 @@ private fun MoreSheet(
 }
 
 @Composable
-private fun ExportSheet(onDismiss: () -> Unit, onBackup: () -> Unit, onCsv: () -> Unit) {
+private fun ExportSheet(
+    week: Int,
+    onDismiss: () -> Unit,
+    onBackup: () -> Unit,
+    onCsv: () -> Unit,
+    onShare: () -> Unit,
+    onSave: () -> Unit,
+) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text("导出课表", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(12.dp))
+            SheetRow("分享课表图片", "生成第 $week 周的长图，可直接发微信 / QQ", onShare)
+            SheetRow("保存到相册", "存到相册的 Pictures/ClassSchedule，随时可找到", onSave)
             SheetRow("备份文件", "完整课表数据（JSON），可用「导入课表」还原", onBackup)
             SheetRow("Excel / CSV 文件", "与 WakeUp 课程表模板列序一致的表格", onCsv)
             Text(
@@ -1213,7 +1390,7 @@ private fun CourseDetailDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 group.slots.forEach { slot ->
-                    DetailRow("时间", "${dayName(slot.dayOfWeek)} ${sectionsText(slot.startSection, slot.endSection)}")
+                    DetailRow("时间", Lang.tr(dayName(slot.dayOfWeek)) + " " + Lang.tr(sectionsText(slot.startSection, slot.endSection)))
                     if (timetable.appearance.showTime) {
                         DetailRow("节次时间", timeText(slot, timetable.sectionTimes))
                     }
@@ -1254,16 +1431,19 @@ private fun Onboarding(onAddSchool: () -> Unit, onAddCourse: () -> Unit, onLoadD
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         Card {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                EmptyTimetableIllustration()
                 Text("还没有课表", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "可以从学校教务系统导入，也可以手动添加课程。",
+                    "从学校教务导入最省事；也可以手动添加，或先载入示例看看效果。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
                 )
+                Spacer(Modifier.height(2.dp))
                 Button(onClick = onAddSchool, modifier = Modifier.fillMaxWidth()) { Text("从学校教务导入") }
                 OutlinedButton(onClick = onAddCourse, modifier = Modifier.fillMaxWidth()) { Text("手动添加课程") }
                 OutlinedButton(onClick = onLoadDemo, modifier = Modifier.fillMaxWidth()) { Text("载入示例课表看看效果") }

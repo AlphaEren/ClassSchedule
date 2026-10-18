@@ -20,7 +20,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
+import com.lorat.classschedule.i18n.Lang
+import com.lorat.classschedule.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -64,7 +65,7 @@ fun SectionTimesScreen(repository: ScheduleRepository, onBack: () -> Unit) {
                         }
                         scope.launch {
                             repository.updateSectionTimes(cleaned)
-                            snackbar.showSnackbar("已保存上课时间")
+                            snackbar.showSnackbar(Lang.tr("已保存上课时间"))
                         }
                     }) { Text("保存") }
                 },
@@ -120,7 +121,7 @@ fun SectionTimesScreen(repository: ScheduleRepository, onBack: () -> Unit) {
                         }
                         scope.launch {
                             repository.updateSectionTimes(cleaned)
-                            snackbar.showSnackbar("已保存上课时间")
+                            snackbar.showSnackbar(Lang.tr("已保存上课时间"))
                         }
                     },
                     modifier = Modifier.weight(1f),

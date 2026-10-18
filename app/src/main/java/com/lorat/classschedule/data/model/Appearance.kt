@@ -55,6 +55,8 @@ data class Appearance(
     val showOtherWeeks: Boolean = true,
     /** 0 = follow system, 1 = force light, 2 = force dark. */
     val darkMode: Int = DarkMode.SYSTEM,
+    /** 界面语言：0 = 跟随系统, 1 = 简体中文, 2 = English. */
+    val language: Int = 0,
     /** 左侧时间轴：显示节次 + 上下课时间 / 只显示节次. */
     val showAxis: Boolean = true,
     val axisShowOnlySection: Boolean = false,

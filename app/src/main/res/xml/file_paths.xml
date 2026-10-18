@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 分享课表图片时临时写到 cache/shared，由 FileProvider 授权给微信/QQ 等接收方 -->
+    <cache-path name="shared" path="shared/" />
+</paths>

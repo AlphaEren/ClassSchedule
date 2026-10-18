@@ -29,7 +29,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
+import com.lorat.classschedule.i18n.Lang
+import com.lorat.classschedule.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -157,7 +158,7 @@ fun ScheduleSettingsScreen(
                             if (target != timetable.sectionTimes.size) {
                                 repository.updateSectionTimes(resizeSections(timetable.sectionTimes, target))
                             }
-                            snackbar.showSnackbar("已保存课表数据")
+                            snackbar.showSnackbar(Lang.tr("已保存课表数据"))
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -249,7 +250,7 @@ fun ScheduleSettingsScreen(
             onPick = { week ->
                 scope.launch {
                     repository.setCurrentWeek(week)
-                    snackbar.showSnackbar("已将第 $week 周设为当前周")
+                    snackbar.showSnackbar(Lang.tr("已将第 $week 周设为当前周"))
                 }
                 showWeekSheet = false
             },
