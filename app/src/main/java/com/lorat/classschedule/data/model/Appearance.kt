@@ -30,7 +30,7 @@ object DarkMode {
 data class Appearance(
     val cellStyle: String = CellStyle.LIGHT,
     /** Height of one 小节 row, in dp (课表外观 → 格子高度). */
-    val cellHeight: Int = 89,
+    val cellHeight: Int = 80,
     val cornerRadius: Int = 12,
     /** Fill opacity of a cell, in percent (不透明度). */
     val opacity: Int = 75,

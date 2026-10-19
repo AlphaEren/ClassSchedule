@@ -50,6 +50,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -96,6 +97,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -125,6 +127,7 @@ import com.lorat.classschedule.data.model.CellStyle
 import com.lorat.classschedule.data.model.Course
 import com.lorat.classschedule.data.model.SectionTime
 import com.lorat.classschedule.data.model.Timetable
+import com.lorat.classschedule.data.noteChipText
 import com.lorat.classschedule.data.parityLabel
 import com.lorat.classschedule.data.progressText
 import com.lorat.classschedule.data.sectionsText
@@ -770,8 +773,8 @@ private fun DateBar(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("${today.monthValue}月", fontSize = 10.sp, color = muted)
-            Text("${today.dayOfMonth}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = primary)
+            // 这一列是「周」的月份标签：跨月的一周按本周第一天算
+            Text("${dates.firstOrNull()?.monthValue ?: today.monthValue}月", fontSize = 11.sp, color = muted)
         }
         dates.forEachIndexed { index, date ->
             val day = columns.getOrElse(index) { index + 1 }
@@ -815,7 +818,7 @@ private fun DateBar(
 /* ------------------------------------------------------------------ 课表网格 */
 
 @Composable
-private fun TimetableGrid(
+internal fun TimetableGrid(
     timetable: Timetable,
     week: Int,
     today: LocalDate,
@@ -977,6 +980,7 @@ private fun WeekPage(
                     span = p.course.endSection - p.course.startSection + 1,
                     totalWeeks = maxOf(1, timetable.totalWeeks),
                     sectionTimes = timetable.sectionTimes,
+                    note = p.course.weekNotes[week] ?: p.course.note,
                     onClick = { onCourseClick(group, p.course) },
                     onLongClick = { onCourseLongClick(group) },
                     autoColors = autoColors,
@@ -1036,6 +1040,7 @@ private fun CourseCell(
     span: Int,
     totalWeeks: Int,
     sectionTimes: List<SectionTime>,
+    note: String,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     autoColors: Map<String, Color>,
@@ -1102,27 +1107,53 @@ private fun CourseCell(
             }
             val showMarks = marks.isNotEmpty() && span >= 2 && innerHeight > 62f
             val metaFont = (appearance.fontSize - 3).coerceAtLeast(8).toFloat()
-            val locationLines = if (innerHeight >= 100f) 2 else 1
+            // 地点这类灰字最多给 3 行；卡片够高才放得下
+            val locationLines = when {
+                innerHeight >= 150f -> 3
+                innerHeight >= 100f -> 2
+                else -> 1
+            }
             val metaReserve = if (metaCount == 0) {
                 0f
             } else {
-                metaFont * 1.45f * (metaCount + if (showLocationText && locationLines == 2) 1 else 0)
+                metaFont * 1.45f * (metaCount + if (showLocationText) (locationLines - 1) else 0)
             }
-            val nameBudget = (innerHeight - metaReserve - if (showMarks) 16f else 0f).coerceAtLeast(12f)
-            val nameFont = fitNameFontSize(group.name, innerWidth, nameBudget, appearance.fontSize.toFloat())
-            val nameLineHeight = nameFont + 1.5f
-            val nameMaxLines = (nameBudget / nameLineHeight).toInt().coerceIn(1, 6)
+            val noteText = note.trim()
+            val showNote = noteText.isNotEmpty() && innerHeight > 52f
+            val nameBudget = (innerHeight - metaReserve -
+                if (showMarks) 16f else 0f -
+                if (showNote) 21f else 0f).coerceAtLeast(12f)
+            // 行高固定用设置字号算，卡片之间才对齐；字号按「要占的行数」自适应
+            val nameLineHeight = appearance.fontSize + 1.5f
+            val nameLinesWanted = if (nameBudget >= nameLineHeight * 2f) 2 else 1
+            val nameFont = fitNameFontSize(
+                group.name,
+                innerWidth,
+                nameLineHeight * nameLinesWanted,
+                appearance.fontSize.toFloat(),
+            )
+            // 用固定高度的块卡住名字区，minLines 的空行会用字体默认行高（比这里的行高小），
+            // 只有 1 行的课就会比别的课少几像素，灰字也就不齐了
+            val nameBlockHeight = with(LocalDensity.current) {
+                (nameLineHeight * nameLinesWanted).sp.toDp()
+            } + 10.dp
 
             Column(Modifier.fillMaxSize()) {
-                Text(
-                    text = group.name,
-                    fontSize = nameFont.sp,
-                    lineHeight = nameLineHeight.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = titleText,
-                    maxLines = nameMaxLines,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Box(Modifier.fillMaxWidth().height(nameBlockHeight)) {
+                    Text(
+                        text = group.name,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = nameFont.sp,
+                        lineHeight = nameLineHeight.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = titleText,
+                        style = LocalTextStyle.current.copy(
+                            platformStyle = PlatformTextStyle(includeFontPadding = false),
+                        ),
+                        maxLines = nameLinesWanted,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 val metaSize = metaFont.sp
                 if (showTimeText) {
                     Text(timeText(course, sectionTimes), fontSize = metaSize, color = metaText, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1139,9 +1170,42 @@ private fun CourseCell(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                // 备注：贴在卡片底部的小胶囊，最多 4 个字，浅白底 + 课程色字
+                if (showNote || showMarks) {
+                    Spacer(Modifier.weight(1f))
+                }
+                if (showNote) {
+                    val chipFill = if (appearance.cellStyle == CellStyle.FILLED) {
+                        Color.White.copy(alpha = 0.18f)
+                    } else {
+                        Color.White.copy(alpha = 0.30f)
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 1.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(chipFill)
+                            .padding(vertical = 2.dp, horizontal = 2.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            noteChipText(noteText),
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            fontSize = if (innerWidth < 70f) 9.5.sp else 10.5.sp,
+                            lineHeight = 13.sp,
+                            color = titleText,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Clip,
+                        )
+                    }
+                    if (showMarks) Spacer(Modifier.height(2.dp))
+                }
                 // 标签：带边框的小牌子。非本周用更实的边框保持醒目，单双周淡一点。
                 if (showMarks) {
-                    Spacer(Modifier.weight(1f))
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         for (mark in marks) {
                             val strong = mark == "非本周"
@@ -1190,15 +1254,15 @@ private fun CourseCell(
 private fun fitNameFontSize(name: String, widthDp: Float, heightDp: Float, preferred: Float): Float {
     if (widthDp <= 0f || name.isEmpty()) return preferred
     var size = preferred
-    while (size > 8f) {
+    while (size > 7f) {
         val lineHeight = size + 1.5f
         val maxLines = (heightDp / lineHeight).toInt().coerceAtLeast(1)
-        val perLine = (widthDp / (size * 1.02f)).toInt().coerceAtLeast(1)
+        val perLine = (widthDp / (size * 1.12f)).toInt().coerceAtLeast(1)
         val lines = (name.length + perLine - 1) / perLine
         if (lines <= maxLines) return size
         size -= 0.5f
     }
-    return 8f
+    return 7f
 }
 
 private fun Modifier.dashedRoundedBorder(

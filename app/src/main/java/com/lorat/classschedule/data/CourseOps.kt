@@ -71,14 +71,32 @@ fun Timetable.courseGroups(): List<CourseGroup> =
 
 fun Timetable.groupOf(key: String): CourseGroup? = courseGroups().firstOrNull { it.key == key }
 
-/** 这一周这一节的备注：优先取按周覆盖的，否则用整门课的备注。 */
+/** 这一周这一节的备注：优先取按周覆盖的，否则用这个时间段自己的备注。 */
 fun CourseGroup.noteFor(week: Int, day: Int, start: Int, end: Int): String {
     val slot = slots.firstOrNull { it.dayOfWeek == day && it.startSection == start && it.endSection == end }
         ?: return note
     return slot.weekNotes[week] ?: slot.note
 }
 
-/** 只给「某天某节」的某一周写备注（空字符串表示这一周显式没有备注）。 */
+/** 这个时间段自己的备注（所有周），不是整门课的。 */
+fun CourseGroup.slotNote(day: Int, start: Int, end: Int): String {
+    val slot = slots.firstOrNull { it.dayOfWeek == day && it.startSection == start && it.endSection == end }
+        ?: return note
+    return slot.note
+}
+
+/** 这一周这一节的单独备注；没有就返回 null（不是空字符串）。 */
+fun CourseGroup.weekNote(week: Int, day: Int, start: Int, end: Int): String? {
+    val slot = slots.firstOrNull { it.dayOfWeek == day && it.startSection == start && it.endSection == end }
+        ?: return null
+    return slot.weekNotes[week]
+}
+
+/** 这一周这一节有没有单独的按周备注。 */
+fun CourseGroup.hasWeekNote(week: Int, day: Int, start: Int, end: Int): Boolean =
+    weekNote(week, day, start, end) != null
+
+/** 只给「某天某节」的某一周写备注；传空串表示去掉这一周的单独备注。 */
 fun List<Course>.withWeekNote(
     key: String,
     day: Int,
@@ -93,15 +111,40 @@ fun List<Course>.withWeekNote(
         course.endSection == end &&
         course.matchesWeek(week)
     ) {
-        course.copy(weekNotes = course.weekNotes + (week to note))
+        val notes = course.weekNotes.toMutableMap()
+        if (note.isBlank()) notes.remove(week) else notes[week] = note
+        course.copy(weekNotes = notes)
     } else {
         course
     }
 }
 
-/** 给整门课写备注，并清掉之前按周覆盖的备注。 */
-fun List<Course>.withGroupNote(key: String, note: String): List<Course> = map { course ->
-    if (course.groupKey == key) course.copy(note = note, weekNotes = emptyMap()) else course
+/**
+ * 给「某天某节」这个时间段写所有周的备注。
+ * 只动这一张卡的记录，不碰同一门课的其它时间段，也不清掉已有的按周备注。
+ */
+fun List<Course>.withSlotNote(
+    key: String,
+    day: Int,
+    start: Int,
+    end: Int,
+    note: String,
+): List<Course> = map { course ->
+    if (course.groupKey == key &&
+        course.dayOfWeek == day &&
+        course.startSection == start &&
+        course.endSection == end
+    ) {
+        course.copy(note = note)
+    } else {
+        course
+    }
+}
+
+/** 卡片底部小胶囊里的备注：最多 4 个字，超出用省略号。 */
+fun noteChipText(note: String): String {
+    val clean = note.trim()
+    return if (clean.length <= 4) clean else clean.take(4) + "…"
 }
 
 /** "单周" / "双周" when every week shares the same parity, otherwise null. */

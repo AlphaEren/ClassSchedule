@@ -2,6 +2,9 @@
 
 package com.lorat.classschedule.ui.settings
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -35,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,7 +46,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,7 +59,10 @@ import com.lorat.classschedule.data.courseGroups
 import com.lorat.classschedule.data.model.CellStyle
 import com.lorat.classschedule.data.model.SectionTime
 import com.lorat.classschedule.data.shiftTime
+import com.lorat.classschedule.ui.timetable.TimetableGrid
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /** 课表设置: 课表数据 + 课表外观 (the two pages WakeUp puts behind the ⋮ panel). */
 @Composable
@@ -74,26 +83,72 @@ fun ScheduleSettingsScreen(
     var sectionCount by remember(timetable.sectionTimes.size) { mutableStateOf(timetable.sectionTimes.size.toString()) }
     var showWeekSheet by remember { mutableStateOf(false) }
 
+    // 调整课表外观时整页淡出，露出背后的真实课表（和主页同一个渲染），方便实时看效果
+    var flashPreviewing by remember { mutableStateOf(false) }
+    var firstAppearance by remember { mutableStateOf(true) }
+    LaunchedEffect(appearance) {
+        if (firstAppearance) {
+            firstAppearance = false
+            return@LaunchedEffect
+        }
+        flashPreviewing = true
+        delay(500)
+        flashPreviewing = false
+    }
+
     val groupCount = remember(timetable.courses) { timetable.courseGroups().size }
     val currentWeek = currentWeekOf(timetable)
+    val previewScroll = rememberScrollState()
+    val previewAlpha by animateFloatAsState(
+        targetValue = if (flashPreviewing) 0.30f else 1f,
+        animationSpec = tween(260),
+        label = "previewAlpha",
+    )
+    val previewGridAlpha by animateFloatAsState(
+        targetValue = if (flashPreviewing) 1f else 0f,
+        animationSpec = tween(260),
+        label = "previewGridAlpha",
+    )
+    val previewBg by animateColorAsState(
+        targetValue = if (flashPreviewing) Color.Transparent else MaterialTheme.colorScheme.background,
+        animationSpec = tween(260),
+        label = "previewBg",
+    )
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = { Text("课表设置") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("返回") } },
+    Box(Modifier.fillMaxSize()) {
+        // 背景：真实课表（同一套 TimetableGrid / 当前周 / 当前设置），淡入淡出
+        if (previewGridAlpha > 0.001f) {
+            TimetableGrid(
+                timetable = timetable,
+                week = currentWeek,
+                today = LocalDate.now(),
+                scrollState = previewScroll,
+                onWeekChange = {},
+                onCourseClick = { _, _ -> },
+                onCourseLongClick = {},
+                onEmptyLongPress = { _, _ -> },
+                modifier = Modifier.fillMaxSize().alpha(previewGridAlpha),
             )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        }
+        Scaffold(
+            modifier = Modifier.fillMaxSize().alpha(previewAlpha),
+            containerColor = previewBg,
+            snackbarHost = { SnackbarHost(snackbar) },
+            topBar = {
+                TopAppBar(
+                    title = { Text("课表设置") },
+                    navigationIcon = { TextButton(onClick = onBack) { Text("返回") } },
+                )
+            },
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             SettingsCard("课表数据") {
                 OutlinedTextField(
                     value = semesterName,
@@ -256,6 +311,7 @@ fun ScheduleSettingsScreen(
             },
             onDismiss = { showWeekSheet = false },
         )
+    }
     }
 }
 

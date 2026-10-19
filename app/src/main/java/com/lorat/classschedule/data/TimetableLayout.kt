@@ -82,7 +82,9 @@ private fun layOutSlot(courses: List<Course>, col: Int, thisWeek: Boolean): List
             } else {
                 records.flatMap { it.weeks }.distinct().sorted()
             }
-            records.first().copy(weeks = weeks)
+            val weekNotes = LinkedHashMap<Int, String>()
+            records.forEach { weekNotes.putAll(it.weekNotes) }
+            records.first().copy(weeks = weeks, weekNotes = weekNotes)
         }
         merged.forEachIndexed { index, course ->
             out.add(

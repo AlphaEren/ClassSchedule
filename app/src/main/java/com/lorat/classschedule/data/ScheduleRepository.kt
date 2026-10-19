@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -32,6 +34,9 @@ class ScheduleRepository(context: Context) {
 
     private val _timetable = MutableStateFlow(load())
     val timetable: StateFlow<Timetable> = _timetable.asStateFlow()
+
+    /** 备注会频繁连写（切范围时先存旧范围），串行化避免两次写互相覆盖。 */
+    private val noteLock = Mutex()
 
     private fun load(): Timetable = runCatching {
         val raw = if (file.exists()) json.decodeFromString(Timetable.serializer(), file.readText()) else Timetable()
@@ -199,12 +204,12 @@ class ScheduleRepository(context: Context) {
         week: Int,
         note: String,
         onlyThisWeek: Boolean,
-    ) {
+    ) = noteLock.withLock {
         val current = _timetable.value
         val updated = if (onlyThisWeek) {
             current.courses.withWeekNote(key, day, start, end, week, note)
         } else {
-            current.courses.withGroupNote(key, note)
+            current.courses.withSlotNote(key, day, start, end, note)
         }
         save(current.copy(courses = updated))
     }

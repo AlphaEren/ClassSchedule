@@ -4,6 +4,7 @@ import com.lorat.classschedule.data.CourseGroup
 import com.lorat.classschedule.data.courseGroups
 import com.lorat.classschedule.data.model.Course
 import com.lorat.classschedule.data.model.Timetable
+import com.lorat.classschedule.data.noteChipText
 import com.lorat.classschedule.data.noteFor
 import com.lorat.classschedule.data.parityLabel
 import com.lorat.classschedule.data.progressText
@@ -11,7 +12,7 @@ import com.lorat.classschedule.data.sectionsText
 import com.lorat.classschedule.data.timeText
 import com.lorat.classschedule.data.weekRanges
 import com.lorat.classschedule.data.weeksText
-import com.lorat.classschedule.data.withGroupNote
+import com.lorat.classschedule.data.withSlotNote
 import com.lorat.classschedule.data.withWeekNote
 import com.lorat.classschedule.data.withoutWeek
 import com.lorat.classschedule.data.model.defaultSectionTimes
@@ -107,14 +108,48 @@ class CourseOpsTest {
         assertEquals("带电脑", group.noteFor(6, 1, 1, 2))
         assertEquals("带书", group.noteFor(7, 1, 1, 2))
 
-        // 清空某一周 = 这一周显式没有备注，不回落
-        val cleared = listOf(slot).withWeekNote("1", 1, 1, 2, 6, "")
-        assertEquals("", Timetable(courses = cleared).courseGroups().first().noteFor(6, 1, 1, 2))
+        // 清空某一周 = 去掉这一周的单独备注，回到这个时间段的备注
+        val cleared = listOf(slot).withWeekNote("1", 1, 1, 2, 6, " ")
+        assertEquals("带书", Timetable(courses = cleared).courseGroups().first().noteFor(6, 1, 1, 2))
 
-        // 写「所有周」会覆盖并清掉按周备注
-        val all = withWeek.withGroupNote("1", "全班")
+        // 写「所有周」不会清掉已有的按周备注：那一周仍然优先显示本周备注
+        val all = withWeek.withSlotNote("1", 1, 1, 2, "全班")
         val g2 = Timetable(courses = all).courseGroups().first()
-        assertEquals("全班", g2.noteFor(6, 1, 1, 2))
+        assertEquals("带电脑", g2.noteFor(6, 1, 1, 2))
         assertEquals("全班", g2.noteFor(7, 1, 1, 2))
+    }
+
+    @Test
+    fun `all-weeks note only touches the selected slot`() {
+        val monday = Course(
+            "1", "A", dayOfWeek = 1, startSection = 1, endSection = 2,
+            weeks = listOf(5, 6, 7, 8), groupId = "g", note = "周一旧",
+        )
+        val tuesday = monday.copy(id = "2", dayOfWeek = 2, startSection = 3, endSection = 4, note = "周二旧")
+        val courses = listOf(monday, tuesday).withSlotNote("g", 1, 1, 2, "周一新")
+        val groups = Timetable(courses = courses).courseGroups().first()
+        assertEquals("周一新", groups.noteFor(6, 1, 1, 2))
+        assertEquals("周二旧", groups.noteFor(6, 2, 3, 4))
+    }
+
+    @Test
+    fun `per-week note only touches the selected slot`() {
+        val monday = Course(
+            "1", "A", dayOfWeek = 1, startSection = 1, endSection = 2,
+            weeks = listOf(5, 6, 7, 8), groupId = "g", note = "整门课",
+        )
+        val tuesday = monday.copy(id = "2", dayOfWeek = 2, startSection = 3, endSection = 4, note = "整门课")
+        val courses = listOf(monday, tuesday).withWeekNote("g", 1, 1, 2, 6, "只看周一")
+        val groups = Timetable(courses = courses).courseGroups().first()
+        assertEquals("只看周一", groups.noteFor(6, 1, 1, 2))
+        assertEquals("整门课", groups.noteFor(6, 2, 3, 4))
+    }
+
+    @Test
+    fun `note chip text keeps four characters`() {
+        assertEquals("test", noteChipText("test"))
+        assertEquals("带电脑", noteChipText("带电脑"))
+        assertEquals("带电脑上…", noteChipText("带电脑上课"))
+        assertEquals("", noteChipText("   "))
     }
 }
